@@ -162,9 +162,9 @@ export const submitManuscript = async (req, res) => {
 
     //  Copyleaks call
     let scanId = null;
-    if (manuscriptUrl) {
-      scanId = await submitUrlToCopyleaks(manuscriptUrl);
-    }
+    // if (manuscriptUrl) {
+    //   scanId = await submitUrlToCopyleaks(manuscriptUrl);
+    // }
 
     // Create manuscript
     const newManuscript = await Manuscript.create({
