@@ -16,7 +16,7 @@ const createAdmin = async () => {
       process.exit();
     }
 
-    const hashedPassword = await bcrypt.hash("mpaadmin@2005", 10);
+    const hashedPassword = await bcrypt.hash("Ultra@MpA#Admin!58", 10);
 
     await User.create({
       name: "Master Admin",

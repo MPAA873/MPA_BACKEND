@@ -1,4 +1,5 @@
 import sendEmail from "../../utils/sendEmail.js";
+import jwt from "jsonwebtoken";
 import Manuscript from "./manuscript.model.js";
 import Review from "../review/review.model.js";
 import User from "../user/user.model.js";
@@ -6,7 +7,7 @@ import { deleteFromCloudinary } from "../../utils/cloudinaryHelper.js";
 import { buildEditorAssignmentEmail } from "../../utils/emailTemplates.js";
 import { submitUrlToCopyleaks } from "../../utils/copyleaksService.js";
 import {
-  buildRejectionEmail,
+  buildRejectionEmail,  
   buildRevisionEmail,
   buildAcceptanceEmail,
   buildPublishedEmail,
@@ -369,6 +370,7 @@ export const assignEditor = async (req, res) => {
 
 export const updateSubmissionStatus = async (req, res) => {
   try {
+
     const { manuscriptId, status, feedback, publishDate } = req.body;
     const userRole = req.user.role;
 
@@ -407,7 +409,14 @@ export const updateSubmissionStatus = async (req, res) => {
         await manuscript.save();
 
         const researcher = manuscript.submittedBy;
-        const revisionUrl = `${process.env.FRONTEND_URL}/revise-manuscript/${manuscript._id}`;
+
+        const revisionToken = jwt.sign(
+          { id: researcher._id },
+          process.env.JWT_SECRET,
+          { expiresIn: "1d" }
+        );
+
+        const revisionUrl = `${process.env.FRONTEND_URL}/revise-manuscript/${manuscript._id}?token=${revisionToken}`;
         const html = buildRevisionEmail(researcher.name, manuscript.manuscriptId, feedback, revisionUrl);
 
         sendEmail({
@@ -488,7 +497,13 @@ export const updateSubmissionStatus = async (req, res) => {
 
         const researcher = manuscript.submittedBy;
 
-        const revisionUrl = `${process.env.FRONTEND_URL}/revise-manuscript/${manuscript._id}`;
+        const revisionToken = jwt.sign(
+          { id: researcher._id },
+          process.env.JWT_SECRET,
+          { expiresIn: "1d" }
+        );
+
+        const revisionUrl = `${process.env.FRONTEND_URL}/revise-manuscript/${manuscript._id}?token=${revisionToken}`;
 
         const html = buildRevisionEmail(
           researcher.name,
