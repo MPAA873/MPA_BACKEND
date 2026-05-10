@@ -1,5 +1,5 @@
 import express from "express";
-import { submitManuscript, getMySubmissions, getAllSubmissions, assignEditor, updateSubmissionStatus, assignReviewers, getAssignedToEditor, getManuscriptById, reviseManuscript, getPublishedArticles, editManuscriptByAdmin, deleteManuscriptByAdmin, toggleEditorChoice, getPublishedYears, getLatestPublished } from "./manuscript.controller.js";
+import { submitManuscript, getMySubmissions, getAllSubmissions, assignEditor, updateSubmissionStatus, assignReviewers, getAssignedToEditor, getManuscriptById, reviseManuscript, getPublishedArticles, editManuscriptByAdmin, deleteManuscriptByAdmin, toggleEditorChoice, getPublishedYears, getLatestPublished,inviteExternalReviewer } from "./manuscript.controller.js";
 import { protect } from "../../Middlewares/auth.middleware.js";
 import upload from "../../Middlewares/upload.middleware.js";
 import { authorizeRoles } from "../../Middlewares/role.middleware.js";
@@ -39,6 +39,14 @@ router.put(
 );
 //assign reviewer route
 router.put("/admin/assign-reviewers", protect, authorizeRoles("masterAdmin", "editor"), assignReviewers)
+
+
+router.post(
+  "/admin/invite-reviewer",
+  protect,
+  authorizeRoles("masterAdmin", "editor"),
+  inviteExternalReviewer
+);
 
 //Get the Manuscript assign by admin to editor
 router.get(

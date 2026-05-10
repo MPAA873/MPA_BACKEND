@@ -6,6 +6,7 @@ import reviewRoutes from "./Modules/review/review.routes.js";
 import enquiryRoutes from "./Modules/enquiry/enquiry.routes.js";
 import copyleaksRoutes from "./Modules/copyleaks/copyleaks.routes.js";
 import express from "express";
+import rateLimit from "express-rate-limit";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
@@ -33,15 +34,22 @@ app.use(
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(morgan("dev"));
-
-
+const registerLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minute
+  max: 3, // only 3 register requests allowed
+  message: {
+    success: false,
+    message: "Too many registration attempts. Try again later.",
+  },
+});
+app.use("/api/v1/users/register", registerLimiter);
 //Routes
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/manuscripts", manuscriptRoutes);
 app.use("/api/v1/website/editorial", editorialRoutes);
 app.use("/api/v1/reviews", reviewRoutes);
-app.use("/api/v1/enquiry",enquiryRoutes);
-app.use("/api/v1/copyleaks",copyleaksRoutes);
+app.use("/api/v1/enquiry", enquiryRoutes);
+app.use("/api/v1/copyleaks", copyleaksRoutes);
 
 // Default Routes
 app.get("/", (req, res) => {

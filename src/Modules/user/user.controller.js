@@ -3,11 +3,58 @@ import bcrypt from "bcryptjs";
 import generateToken from "../../utils/generateToken.js";
 import crypto from "crypto";
 import sendEmail from "../../utils/sendEmail.js";
+import fetch from "node-fetch";
 
 //Public registration for Researcher
 export const registerUser = async (req, res) => {
   try {
-    const { name, email, password, affiliation } = req.body;
+    const { name, email, password, affiliation, captchaToken } = req.body;
+
+    // ================= CAPTCHA VERIFY =================
+
+    const captchaResponse = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: `secret=${process.env.TURNSTILE_SECRET_KEY}&response=${captchaToken}`,
+      }
+    );
+
+    const captchaData = await captchaResponse.json();
+
+    if (!captchaData.success) {
+      return res.status(400).json({
+        success: false,
+        message: "Captcha verification failed",
+      });
+    }
+
+    // ==================================================
+
+
+    // BLOCK RANDOM BOT NAMES
+
+    const randomPattern = /^[A-Za-z0-9]{15,}$/;
+
+    if (randomPattern.test(name)) {
+      return res.status(400).json({
+        success: false,
+        message: "Suspicious name detected",
+      });
+    }
+
+
+    // PASSWORD VALIDATION
+
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 8 characters",
+      });
+    }
 
     const existingUser = await User.findOne({ email });
     if (existingUser)
@@ -124,6 +171,7 @@ export const loginUser = async (req, res) => {
 export const createUser = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
+
 
     const existingUser = await User.findOne({ email });
     if (existingUser)
@@ -306,31 +354,28 @@ export const getAllReviewers = async (req, res) => {
 }
 
 //Delete A User
-export const deleteUser= async (req,res)=> {
-  try{
-    const user=await User.findById(req.params.id);
-    if(!user)
-    {
+export const deleteUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
       return res.status(404)
-      .json({message:"User not Found"});
+        .json({ message: "User not Found" });
     }
-    if(user.role === "masterAdmin")
-    {
+    if (user.role === "masterAdmin") {
       return res.status(400)
-      .json({message:"Cannot Delete Master Admin"});
+        .json({ message: "Cannot Delete Master Admin" });
     }
 
     await user.deleteOne();
 
     res.status(200)
-    .json({
-      success:true,
-      message:"User Deleted Successfully",
-    })
+      .json({
+        success: true,
+        message: "User Deleted Successfully",
+      })
   }
-  catch(error)
-  {
+  catch (error) {
     res.status(500)
-    .json({message:error.message});
+      .json({ message: error.message });
   }
 }

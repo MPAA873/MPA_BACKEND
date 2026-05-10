@@ -19,7 +19,7 @@ import { authorizeRoles } from "../../Middlewares/role.middleware.js";
 import passport from "passport";
 import User from "./user.model.js";
 
- // adjust path if needed
+// adjust path if needed
 import generateToken from "../../utils/generateToken.js";
 
 
@@ -29,16 +29,16 @@ const router = express.Router();
 router.post("/login", loginUser);
 
 // Only Master Admin Can Access
-router.post("/create", protect, authorizeRoles("masterAdmin"),createUser);
+router.post("/create", protect, authorizeRoles("masterAdmin"), createUser);
 
 //Get All Editor
-router.get("/editors", protect, authorizeRoles("masterAdmin"),getAllEditors);
+router.get("/editors", protect, authorizeRoles("masterAdmin"), getAllEditors);
 
 //Get All Reviewer
-router.get("/reviewers", protect, authorizeRoles("masterAdmin","editor"),getAllReviewers);
+router.get("/reviewers", protect, authorizeRoles("masterAdmin", "editor"), getAllReviewers);
 
 //Delte the User
-router.delete("/delete/:id",protect,authorizeRoles("masterAdmin"),deleteUser);
+router.delete("/delete/:id", protect, authorizeRoles("masterAdmin"), deleteUser);
 
 router.put(
   "/block/:id",
@@ -73,7 +73,7 @@ router.get(
 //   passport.authenticate("google", { session: false }),
 //   (req, res) => {
 //     const email = req.user.email;
-     
+
 //      const isExistingUser =
 
 //     const token = jwt.sign(req.user, process.env.JWT_SECRET)
@@ -88,6 +88,9 @@ router.get(
   passport.authenticate("google", { session: false }),
   async (req, res) => {
     try {
+      console.log("GOOGLE CALLBACK");
+      console.log(req.user);
+
       const { email, name } = req.user;
 
       // Check if user already exists
@@ -104,7 +107,7 @@ router.get(
       }
 
       //  Create token using user._id
-     const token = generateToken(user._id);
+      const token = generateToken(user._id);
 
       //  Redirect to frontend
       res.redirect(

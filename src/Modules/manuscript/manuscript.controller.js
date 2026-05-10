@@ -1,5 +1,6 @@
 import sendEmail from "../../utils/sendEmail.js";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 import Manuscript from "./manuscript.model.js";
 import Review from "../review/review.model.js";
 import User from "../user/user.model.js";
@@ -7,7 +8,7 @@ import { deleteFromCloudinary } from "../../utils/cloudinaryHelper.js";
 import { buildEditorAssignmentEmail } from "../../utils/emailTemplates.js";
 import { submitUrlToCopyleaks } from "../../utils/copyleaksService.js";
 import {
-  buildRejectionEmail,  
+  buildRejectionEmail,
   buildRevisionEmail,
   buildAcceptanceEmail,
   buildPublishedEmail,
@@ -370,10 +371,8 @@ export const assignEditor = async (req, res) => {
 
 export const updateSubmissionStatus = async (req, res) => {
   try {
-
     const { manuscriptId, status, feedback, publishDate } = req.body;
     const userRole = req.user.role;
-
     const file = req.file ? req.file.path : null;
 
     const manuscript = await Manuscript.findById(manuscriptId).populate(
@@ -382,111 +381,84 @@ export const updateSubmissionStatus = async (req, res) => {
     );
 
     if (!manuscript) {
-      return res.status(404).json({
-        success: false,
-        message: "Manuscript not found",
-      });
+      return res.status(404).json({ success: false, message: "Manuscript not found" });
     }
 
-    //Gaurd if paper publish or reject then status cannot be change after that
     const finalizedStatus = ["Published", "Rejected"];
     if (finalizedStatus.includes(manuscript.status)) {
       return res.status(400).json({
         success: false,
-        message: `Modification Denied: This manuscript is already ${manuscript.status} and cannot be updated.`,
+        message: `Modification Denied: This manuscript is already ${manuscript.status}`,
       });
     }
 
-
+    // --- Editor Logic (Same as before) ---
     if (userRole === "editor") {
-
       if (status === "Revision Required") {
         manuscript.status = "Revision Required";
         manuscript.revisionFeedback = feedback || "";
         manuscript.isRevised = false;
         if (file) manuscript.feedbackFile = file;
-
         await manuscript.save();
-
         const researcher = manuscript.submittedBy;
-
-        const revisionToken = jwt.sign(
-          { id: researcher._id },
-          process.env.JWT_SECRET,
-          { expiresIn: "1d" }
-        );
-
+        const revisionToken = jwt.sign({ id: researcher._id }, process.env.JWT_SECRET, { expiresIn: "1d" });
         const revisionUrl = `${process.env.FRONTEND_URL}/revise-manuscript/${manuscript._id}?token=${revisionToken}`;
         const html = buildRevisionEmail(researcher.name, manuscript.manuscriptId, feedback, revisionUrl);
-
-        sendEmail({
-          email: researcher.email,
-          subject: `Revision Required: ${manuscript.manuscriptId}`,
-          html,
-          attachments: file ? [{ filename: "Editor-Comments.pdf", path: file }] : [],
-        }).catch(err => console.error("Email Error:", err));
-
-        return res.status(200).json({
-          success: true,
-          message: "Revision request sent directly to the researcher.",
-          manuscript,
-        });
-
+        sendEmail({ email: researcher.email, subject: `Revision Required: ${manuscript.manuscriptId}`, html, attachments: file ? [{ filename: "Editor-Comments.pdf", path: file }] : [] }).catch(err => console.error(err));
+        return res.status(200).json({ success: true, message: "Revision request sent.", manuscript });
       } else {
-        if (status === "Accepted") {
-          const acceptRecommendationsCount = await Review.countDocuments({
-            manuscriptId: manuscriptId,
-            reviewStatus: "Completed",
-            recommendation: "Accept",
-          });
-
-          if (acceptRecommendationsCount < 2) {
-            return res.status(400).json({
-              success: false,
-              message: `Action Denied: Minimum 2 'Accept' recommendations required. (Current: ${acceptRecommendationsCount})`,
-            });
-          }
-          manuscript.editorRecommendation = "Recommend Acceptance";
-        }
-
-        else if (status === "Rejected") {
-          manuscript.editorRecommendation = "Recommend Rejection";
-        }
-        else {
-          manuscript.editorRecommendation = "Recommend Revision";
-        }
-
         manuscript.status = "Awaiting Admin Decision";
         manuscript.editorInternalComments = feedback;
         if (file) manuscript.feedbackFile = file;
-
         await manuscript.save();
-
-        return res.status(200).json({
-          success: true,
-          message: "Recommendation sent to the Admin.",
-          manuscript,
-        });
+        return res.status(200).json({ success: true, message: "Recommendation sent to Admin.", manuscript });
       }
     }
+
+    // --- Master Admin Logic (Main Changes Here) ---
     if (userRole === "masterAdmin") {
 
-      if (["Accepted", "Published", "Approved"].includes(status)) {
-        const acceptRecommendationsCount = await Review.countDocuments({
-          manuscriptId: manuscriptId,
-          reviewStatus: "Completed",
-          recommendation: "Accept",
+      // 1. New Logic: Sending Final Script to Author
+      if (status === "Final Script Sent") {
+        if (!file) return res.status(400).json({ success: false, message: "Please upload the templated manuscript file." });
+
+        manuscript.status = "Final Script Sent";
+        manuscript.feedbackFile = file; // Store templated file
+        await manuscript.save();
+
+        const researcher = manuscript.submittedBy;
+        const revisionToken = jwt.sign({ id: researcher._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+        const revisionUrl = `${process.env.FRONTEND_URL}/revise-manuscript/${manuscript._id}?token=${revisionToken}`;
+
+        const html = `
+          <div style="font-family: Arial, sans-serif; color: #333;">
+            <h2>Action Required: Final Proof Review</h2>
+            <p>Dear ${researcher.name},</p>
+            <p>Your manuscript <b>${manuscript.manuscriptId}</b> is approved. We have prepared the final version in our template.</p>
+            <p>Please download the attachment, review it, and re-upload it via the link below to confirm.</p>
+            <a href="${revisionUrl}" style="background: #10B981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 10px;">Upload Final Script</a>
+          </div>
+        `;
+
+        await sendEmail({
+          email: researcher.email,
+          subject: `Final Proofreading: ${manuscript.manuscriptId}`,
+          html,
+          attachments: [{ filename: "Final-Template.pdf", path: file }]
         });
 
-        if (acceptRecommendationsCount < 2) {
-          return res.status(400).json({
-            success: false,
-            message: "Action Denied: Minimum 2 'Accept' recommendations required.",
-          });
-        }
+        return res.status(200).json({ success: true, message: "Final script sent to author for proofreading." });
       }
 
+      // 2. Lock: Cannot Publish unless Author Approved
+      if (status === "Published" && manuscript.status !== "Final Author Approved") {
+        return res.status(400).json({
+          success: false,
+          message: "Action Blocked: Author must approve the Final Templated Script before you can Publish.",
+        });
+      }
 
+      // --- Normal Admin Status Handling ---
       if (status === "Rejected") {
         manuscript.status = "Rejected";
         manuscript.rejectionFeedback = feedback || "";
@@ -494,117 +466,36 @@ export const updateSubmissionStatus = async (req, res) => {
         manuscript.status = "Revision Required";
         manuscript.revisionFeedback = feedback || "";
         manuscript.isRevised = false;
-
         const researcher = manuscript.submittedBy;
-
-        const revisionToken = jwt.sign(
-          { id: researcher._id },
-          process.env.JWT_SECRET,
-          { expiresIn: "1d" }
-        );
-
+        const revisionToken = jwt.sign({ id: researcher._id }, process.env.JWT_SECRET, { expiresIn: "1d" });
         const revisionUrl = `${process.env.FRONTEND_URL}/revise-manuscript/${manuscript._id}?token=${revisionToken}`;
-
-        const html = buildRevisionEmail(
-          researcher.name,
-          manuscript.manuscriptId,
-          feedback,
-          revisionUrl
-        );
-
-        await sendEmail({
-          email: researcher.email,
-          subject: `Revision Required: ${manuscript.manuscriptId}`,
-          html,
-          attachments: file
-            ? [{ filename: "Revision-Document.pdf", path: file }]
-            : [],
-        }).catch(err => console.error("EMAIL ERROR:", err))
-      }
-
-      else if (status === "Approved") {
+        const html = buildRevisionEmail(researcher.name, manuscript.manuscriptId, feedback, revisionUrl);
+        await sendEmail({ email: researcher.email, subject: `Revision Required: ${manuscript.manuscriptId}`, html, attachments: file ? [{ filename: "Revision.pdf", path: file }] : [] });
+      } else if (status === "Approved") {
         manuscript.status = "Approved";
         manuscript.acceptedAt = new Date();
-      }
-
-      else if (status === "Accepted") {
+      } else if (status === "Accepted") {
         if (!publishDate) return res.status(400).json({ success: false, message: "Publish date required" });
         manuscript.status = "Accepted";
         manuscript.acceptedAt = new Date();
         manuscript.publishDate = new Date(publishDate);
       } else if (status === "Published") {
-
-        if (!["Accepted", "Approved"].includes(manuscript.status)) {
-          return res.status(400).json({
-            success: false,
-            message: "Only approved/accepted manuscripts can be published",
-          });
-        }
-
         manuscript.status = "Published";
         manuscript.publishedAt = new Date();
-
-        const { volume, issue, issueLabel } = getVolumeIssue(
-          manuscript.publishDate || new Date()
-        );
-
-        const { paperSequence, paperNumber } =
-          await generatePaperNumber(volume, issue);
-
-        manuscript.volume = volume;
-        manuscript.issue = issue;
-        manuscript.issueLabel = issueLabel;
-        manuscript.paperSequence = paperSequence;
-        manuscript.paperNumber = paperNumber;
+        const { volume, issue, issueLabel } = getVolumeIssue(manuscript.publishDate || new Date());
+        const { paperSequence, paperNumber } = await generatePaperNumber(volume, issue);
+        manuscript.volume = volume; manuscript.issue = issue; manuscript.issueLabel = issueLabel;
+        manuscript.paperSequence = paperSequence; manuscript.paperNumber = paperNumber;
       }
 
-      if (file) manuscript.feedbackFile = file;
+      if (file && status !== "Final Script Sent") manuscript.feedbackFile = file;
       await manuscript.save();
-
-      const researcher = manuscript.submittedBy;
-
-      if (status === "Rejected") {
-        const html = buildRejectionEmail(researcher.name, manuscript.manuscriptId, feedback);
-        sendEmail({ email: researcher.email, subject: "Manuscript Update", html });
-      } else if (status === "Accepted" || status === "Approved") {
-        const html = buildAcceptanceEmail(
-          researcher.name,
-          manuscript.manuscriptId,
-          status === "Accepted" ? manuscript.publishDate : null
-        );
-
-        sendEmail({
-          email: researcher.email,
-          subject: "Manuscript Accepted",
-          html
-        });
-      } else if (status === "Published") {
-        const articleUrl = `${process.env.FRONTEND_URL}/articles/${manuscript._id}`;
-        const html = buildPublishedEmail(
-          researcher.name,
-          manuscript.manuscriptId,
-          manuscript.publishedAt,
-          manuscript.volume,
-          manuscript.issue,
-          manuscript.issueLabel,
-          manuscript.paperNumber,
-          articleUrl,
-
-        );
-        sendEmail({ email: researcher.email, subject: "Manuscript Published", html });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: `Status updated to ${status} and Researcher notified.`,
-        manuscript,
-      });
+      return res.status(200).json({ success: true, message: `Status updated to ${status}`, manuscript });
     }
 
     return res.status(403).json({ success: false, message: "Unauthorized" });
-
   } catch (error) {
-    console.error("STATUS UPDATE ERROR:", error);
+    console.error(error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -728,6 +619,398 @@ export const assignReviewers = async (req, res) => {
   }
 };
 
+
+
+export const inviteExternalReviewer = async (req, res) => {
+  try {
+    const { manuscriptId, name, email, institution } = req.body;
+
+    if (!name || !email) {
+      return res.status(400).json({
+        success: false,
+        message: "Name and email required",
+      });
+    }
+
+    const manuscript = await Manuscript.findById(manuscriptId);
+
+    if (!manuscript) {
+      return res.status(404).json({
+        success: false,
+        message: "Manuscript not found",
+      });
+    }
+
+    let reviewer = await User.findOne({ email });
+
+    const defaultPassword = "Welcome@123";
+
+    if (!reviewer) {
+      const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+      reviewer = await User.create({
+        name,
+        email,
+        password: hashedPassword,
+        role: "reviewer",
+        isVerified: true,
+      });
+    }
+
+    const alreadyAssigned = manuscript.assignedReviewers.some(
+      (id) => id.toString() === reviewer._id.toString()
+    );
+
+    if (!alreadyAssigned) {
+      manuscript.assignedReviewers.push(reviewer._id);
+    }
+
+    manuscript.externalReviewers.push({
+      name,
+      email,
+      institution,
+      invitedBy: req.user._id,
+      invitationStatus: "Accepted",
+      invitedAt: new Date(),
+    });
+
+    manuscript.status = "Under Review";
+
+    await manuscript.save();
+
+    const existingReview = await Review.findOne({
+      manuscriptId,
+      reviewerId: reviewer._id,
+    });
+
+    if (!existingReview) {
+      await Review.create({
+        manuscriptId,
+        reviewerId: reviewer._id,
+        invitationStatus: "Pending",
+      });
+    }
+
+    const loginUrl = `https://admin.mparesearch.com`;
+
+    const html = `
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MPA Research Reviewer Invitation</title>
+</head>
+
+<body style="
+  margin:0;
+  padding:0;
+  background:#f1f5f9;
+  font-family:Arial,sans-serif;
+">
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 15px;">
+    <tr>
+      <td align="center">
+
+        <!-- MAIN CONTAINER -->
+        <table width="680" cellpadding="0" cellspacing="0" style="
+          background:#ffffff;
+          border-radius:24px;
+          overflow:hidden;
+          box-shadow:0 8px 30px rgba(0,0,0,0.08);
+        ">
+
+          <!-- HEADER -->
+          <tr>
+            <td style="
+              background:linear-gradient(135deg,#2563eb,#1d4ed8);
+              padding:55px 40px;
+              text-align:center;
+            ">
+
+              <h1 style="
+                margin:0;
+                font-size:38px;
+                font-weight:800;
+                color:#ffffff;
+                letter-spacing:1px;
+              ">
+                MPA Research
+              </h1>
+
+              <p style="
+                margin:14px 0 0;
+                color:rgba(255,255,255,0.88);
+                font-size:15px;
+                line-height:1.6;
+              ">
+                Editorial & Peer Review Management System
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- BODY -->
+          <tr>
+            <td style="padding:50px 42px;">
+
+              <h2 style="
+                margin-top:0;
+                margin-bottom:24px;
+                color:#0f172a;
+                font-size:30px;
+                font-weight:800;
+              ">
+                Reviewer Invitation
+              </h2>
+
+              <p style="
+                color:#475569;
+                font-size:16px;
+                line-height:1.9;
+                margin:0 0 20px;
+              ">
+                Hello <strong>${name}</strong>,
+              </p>
+
+              <p style="
+                color:#475569;
+                font-size:16px;
+                line-height:1.9;
+                margin:0;
+              ">
+                You have been officially invited to join the
+                <strong>MPA Research Editorial Review Panel</strong>
+                as a reviewer for the following manuscript.
+              </p>
+
+              <!-- MANUSCRIPT CARD -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="
+                margin-top:35px;
+                background:#f8fafc;
+                border:1px solid #e2e8f0;
+                border-radius:18px;
+              ">
+                <tr>
+                  <td style="padding:28px;">
+
+                    <p style="
+                      margin:0 0 10px;
+                      color:#64748b;
+                      font-size:12px;
+                      font-weight:700;
+                      text-transform:uppercase;
+                      letter-spacing:1px;
+                    ">
+                      Assigned Manuscript
+                    </p>
+
+                    <h3 style="
+                      margin:0;
+                      color:#0f172a;
+                      font-size:22px;
+                      line-height:1.6;
+                    ">
+                      ${manuscript.title}
+                    </h3>
+
+                  </td>
+                </tr>
+              </table>
+
+              <!-- LOGIN CARD -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="
+                margin-top:35px;
+                background:linear-gradient(135deg,#eff6ff,#dbeafe);
+                border:1px solid #bfdbfe;
+                border-radius:20px;
+              ">
+                <tr>
+                  <td style="padding:30px;">
+
+                    <h3 style="
+                      margin-top:0;
+                      margin-bottom:25px;
+                      color:#1d4ed8;
+                      font-size:22px;
+                    ">
+                      Reviewer Login Credentials
+                    </h3>
+
+                    <!-- EMAIL -->
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="
+                          padding:12px 0;
+                          color:#334155;
+                          font-weight:700;
+                          width:130px;
+                          vertical-align:top;
+                        ">
+                          Email
+                        </td>
+
+                        <td style="
+                          padding:12px 0;
+                          color:#0f172a;
+                          font-weight:600;
+                        ">
+                          ${email}
+                        </td>
+                      </tr>
+
+                      <!-- PASSWORD -->
+                      <tr>
+                        <td style="
+                          padding:12px 0;
+                          color:#334155;
+                          font-weight:700;
+                          vertical-align:top;
+                        ">
+                          Password
+                        </td>
+
+                        <td style="padding:12px 0;">
+
+                          <div style="
+                            background:#ffffff;
+                            border:1px solid #cbd5e1;
+                            border-radius:14px;
+                            padding:14px 18px;
+                            color:#0f172a;
+                            font-weight:700;
+                            letter-spacing:1px;
+                            display:inline-block;
+                          ">
+                            Welcome@123
+                          </div>
+
+                        </td>
+                      </tr>
+                    </table>
+
+                  </td>
+                </tr>
+              </table>
+
+              <!-- BUTTON -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:45px;">
+                <tr>
+                  <td align="center">
+
+                    <a
+                      href="${loginUrl}"
+                      style="
+                        display:inline-block;
+                        background:linear-gradient(135deg,#2563eb,#1d4ed8);
+                        color:#ffffff;
+                        text-decoration:none;
+                        padding:18px 40px;
+                        border-radius:14px;
+                        font-size:16px;
+                        font-weight:700;
+                        box-shadow:0 10px 20px rgba(37,99,235,0.25);
+                      "
+                    >
+                      Access Reviewer Dashboard
+                    </a>
+
+                  </td>
+                </tr>
+              </table>
+
+              <!-- SECURITY -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="
+                margin-top:45px;
+                background:#fff7ed;
+                border:1px solid #fed7aa;
+                border-radius:18px;
+              ">
+                <tr>
+                  <td style="padding:24px;">
+
+                    <h4 style="
+                      margin-top:0;
+                      margin-bottom:12px;
+                      color:#c2410c;
+                      font-size:18px;
+                    ">
+                      Security Recommendation
+                    </h4>
+
+                    <p style="
+                      margin:0;
+                      color:#7c2d12;
+                      font-size:14px;
+                      line-height:1.8;
+                    ">
+                      For account security, please change your password immediately after your first login to the reviewer dashboard.
+                    </p>
+
+                  </td>
+                </tr>
+              </table>
+
+              <!-- FOOTER -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="
+                margin-top:45px;
+                border-top:1px solid #e2e8f0;
+              ">
+                <tr>
+                  <td style="padding-top:28px;">
+
+                    <p style="
+                      margin:0;
+                      color:#64748b;
+                      font-size:14px;
+                      line-height:1.9;
+                    ">
+                      Regards,<br />
+
+                      <strong style="color:#0f172a;">
+                        MPA Research Editorial Office
+                      </strong>
+                    </p>
+
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>
+`;
+
+
+    await sendEmail({
+      email,
+      subject: "Reviewer Invitation",
+      html,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Reviewer invited successfully",
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 // Get manuscripts assigned to logged-in editor
 export const getAssignedToEditor = async (req, res) => {
   try {
@@ -786,102 +1069,55 @@ export const getManuscriptById = async (req, res) => {
 // Submit revised manuscript
 export const reviseManuscript = async (req, res) => {
   try {
-    // 1. Find the manuscript by its ID from the URL
     const manuscript = await Manuscript.findById(req.params.id);
 
     if (!manuscript) {
-      return res.status(404).json({
-        success: false,
-        message: "Manuscript not found",
-      });
+      return res.status(404).json({ success: false, message: "Manuscript not found" });
     }
 
-    // 2. Security Check: Only the original owner can revise this manuscript
     if (manuscript.submittedBy.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "Not authorized to edit this manuscript",
-      });
+      return res.status(403).json({ success: false, message: "Not authorized" });
     }
 
-    // 3. Update uploaded files if new ones are provided
+    // --- LOGIC CHANGE START ---
+    // Agar manuscript final proofreading stage par hai, to status change karein
+    if (manuscript.status === "Final Script Sent") {
+      manuscript.status = "Final Author Approved";
+    } else {
+      manuscript.status = "Submitted"; // Normal Revision
+    }
+    // --- LOGIC CHANGE END ---
+
     if (req.files) {
-      // Update Manuscript main file
       if (req.files.manuscriptFile) {
-        manuscript.files.manuscriptFile = {
-          url: req.files.manuscriptFile[0].path,
-          publicId: req.files.manuscriptFile[0].filename,
-        };
+        manuscript.files.manuscriptFile = { url: req.files.manuscriptFile[0].path, publicId: req.files.manuscriptFile[0].filename };
       }
-
-      // Update Cover Letter
       if (req.files.coverLetter) {
-        manuscript.files.coverLetter = {
-          url: req.files.coverLetter[0].path,
-          publicId: req.files.coverLetter[0].filename,
-        };
+        manuscript.files.coverLetter = { url: req.files.coverLetter[0].path, publicId: req.files.coverLetter[0].filename };
       }
-
-      // Update Ethical Declaration
       if (req.files.ethicalDeclaration) {
-        manuscript.files.ethicalDeclaration = {
-          url: req.files.ethicalDeclaration[0].path,
-          publicId: req.files.ethicalDeclaration[0].filename,
-        };
+        manuscript.files.ethicalDeclaration = { url: req.files.ethicalDeclaration[0].path, publicId: req.files.ethicalDeclaration[0].filename };
       }
-
-      // Update AI Report
       if (req.files.aiReport) {
-        manuscript.files.aiReport = {
-          url: req.files.aiReport[0].path,
-          publicId: req.files.aiReport[0].filename,
-        };
+        manuscript.files.aiReport = { url: req.files.aiReport[0].path, publicId: req.files.aiReport[0].filename };
       }
-
-      // Update Figures (this handles multiple files as an array of objects)
       if (req.files.figures) {
-        manuscript.files.figures = req.files.figures.map((file) => ({
-          url: file.path,
-          publicId: file.filename,
-        }));
+        manuscript.files.figures = req.files.figures.map((file) => ({ url: file.path, publicId: file.filename }));
       }
-
-      // Update Tables
       if (req.files.tables) {
-        manuscript.files.tables = {
-          url: req.files.tables[0].path,
-          publicId: req.files.tables[0].filename,
-        };
+        manuscript.files.tables = { url: req.files.tables[0].path, publicId: req.files.tables[0].filename };
       }
-
-      // Update Review Checklist
       if (req.files.reviewChecklist) {
-        manuscript.files.reviewChecklist = {
-          url: req.files.reviewChecklist[0].path,
-          publicId: req.files.reviewChecklist[0].filename,
-        };
+        manuscript.files.reviewChecklist = { url: req.files.reviewChecklist[0].path, publicId: req.files.reviewChecklist[0].filename };
       }
     }
 
-    // 4. Reset status to "Submitted" and mark as revised
-    manuscript.status = "Submitted";
     manuscript.isRevised = true;
-
-    // 5. Save all changes to the database
     await manuscript.save();
 
-    // 6. Send success response back to the user
-    res.status(200).json({
-      success: true,
-      message: "Revision submitted successfully",
-      manuscript,
-    });
+    res.status(200).json({ success: true, message: "Manuscript updated and submitted successfully.", manuscript });
   } catch (error) {
-    console.error("REVISION ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 

@@ -140,6 +140,8 @@ const manuscriptSchema = new mongoose.Schema(
         "Revision Required",
         "Awaiting Admin Decision",
         "Approved",
+        "Final Script Sent",
+        "Final Author Approved",
         "Accepted",
         "Rejected",
         "Published",
@@ -164,6 +166,45 @@ const manuscriptSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+
+    externalReviewers: [
+      {
+        name: {
+          type: String,
+          trim: true,
+        },
+
+        email: {
+          type: String,
+          lowercase: true,
+          trim: true,
+        },
+
+        institution: {
+          type: String,
+          trim: true,
+          default: "",
+        },
+
+        invitedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+
+        invitationStatus: {
+          type: String,
+          enum: ["Pending", "Accepted"],
+          default: "Pending",
+        },
+
+        invitedAt: {
+          type: Date,
+          default: Date.now,
+        },
+
+        token: String,
+      }
+    ],
 
     assignedReviewers: [
       {
