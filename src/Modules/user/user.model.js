@@ -13,19 +13,20 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-       required: true,
+      required: true,
     },
     role: {
       type: String,
       enum: ["masterAdmin", "editor", "reviewer", "researcher"],
       default: "researcher",
     },
-    isVerified:{
+    isVerified: {
       type: Boolean,
       default: false,
     },
     verificationToken: String,
     resetPasswordToken: String,
+    resetPasswordExpire: Date,
     isBlocked: {
       type: Boolean,
       default: false,

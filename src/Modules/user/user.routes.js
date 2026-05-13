@@ -3,12 +3,14 @@ import express from "express";
 import {
   createUser,
   deleteUser,
+  forgotPassword,
   getAllEditors,
   getAllReviewers,
   getAllUsers,
   getMe,
   loginUser,
   registerUser,
+  resetPassword,
   toggleBlockUser,
   updateProfile,
   updateUserRole,
@@ -60,6 +62,10 @@ router.put("/profile", protect, updateProfile);
 
 router.post("/register", registerUser);
 router.get("/verify-email/:token", verifyEmail);
+
+router.post("/forgot-password", forgotPassword);
+
+router.put("/reset-password/:token", resetPassword);
 
 //google auth routes
 
