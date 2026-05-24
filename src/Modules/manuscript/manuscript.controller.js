@@ -479,13 +479,72 @@ export const updateSubmissionStatus = async (req, res) => {
         manuscript.status = "Accepted";
         manuscript.acceptedAt = new Date();
         manuscript.publishDate = new Date(publishDate);
-      } else if (status === "Published") {
+      }
+
+      else if (status === "Published") {
+        if (!file) return res.status(400).json({ success: false, message: "Final layout PDF is required for publication." });
+
         manuscript.status = "Published";
         manuscript.publishedAt = new Date();
-        const { volume, issue, issueLabel } = getVolumeIssue(manuscript.publishDate || new Date());
+
+        // Accurate Volume/Issue Calculation
+        const { volume, issue, issueLabel } = getVolumeIssue(new Date());
         const { paperSequence, paperNumber } = await generatePaperNumber(volume, issue);
-        manuscript.volume = volume; manuscript.issue = issue; manuscript.issueLabel = issueLabel;
-        manuscript.paperSequence = paperSequence; manuscript.paperNumber = paperNumber;
+
+        manuscript.volume = volume;
+        manuscript.issue = issue;
+        manuscript.issueLabel = issueLabel;
+        manuscript.paperSequence = paperSequence;
+        manuscript.paperNumber = paperNumber;
+
+        // Set the uploaded file as the main Manuscript PDF
+        manuscript.files.manuscriptFile = {
+          url: file,
+          publicId: req.file.filename
+        };
+
+        await manuscript.save();
+
+        // --- Production Level Beautiful Email ---
+        const researcher = manuscript.submittedBy;
+        const websiteUrl = `${process.env.FRONTEND_URL}/articles/${manuscript._id}`;
+
+        const html = `
+          <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f7f9; padding: 50px 20px;">
+            <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.05);">
+              <div style="background: linear-gradient(135deg, #059669 0%, #0d9488 100%); padding: 60px 40px; text-align: center;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 900; letter-spacing: -0.02em;">Congratulations!</h1>
+                <p style="color: rgba(255,255,255,0.9); margin-top: 10px; font-size: 18px;">Your Research is Officially Published</p>
+              </div>
+              <div style="padding: 40px; color: #1e293b;">
+                <p style="font-size: 16px; line-height: 1.6;">Dear <b>${researcher.name}</b>,</p>
+                <p style="font-size: 16px; line-height: 1.6;">We are proud to inform you that your manuscript has been successfully archived in the <b>MPA Research Journal</b>.</p>
+                
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 25px; margin: 30px 0;">
+                  <p style="margin: 0 0 10px; font-size: 14px; color: #64748b; font-weight: 700; text-transform: uppercase;">Publication Details</p>
+                  <p style="margin: 0 0 12px; font-size: 18px; color: #0f172a; font-weight: 800;">${manuscript.title}</p>
+                  <p style="margin: 5px 0; font-size: 15px; color: #334155;"><b>Citation:</b> Vol. ${volume}, Issue ${issue} (${issueLabel})</p>
+                  <p style="margin: 5px 0; font-size: 15px; color: #334155;"><b>Paper Number:</b> ${paperNumber}</p>
+                </div>
+
+                <div style="text-align: center; margin-top: 40px;">
+                  <a href="${websiteUrl}" style="background: #0f172a; color: #ffffff; padding: 20px 40px; border-radius: 14px; text-decoration: none; font-weight: 800; display: inline-block; box-shadow: 0 10px 20px rgba(15,23,42,0.2);">View Public Article</a>
+                </div>
+              </div>
+              <div style="background: #f1f5f9; padding: 30px; text-align: center; color: #94a3b8; font-size: 13px;">
+                © ${new Date().getFullYear()} MPA Research Editorial Team. All rights reserved.
+              </div>
+            </div>
+          </div>
+        `;
+
+        await sendEmail({
+          email: researcher.email,
+          subject: `OUT NOW: Your Article is Published - ${manuscript.manuscriptId}`,
+          html,
+        });
+
+        return res.status(200).json({ success: true, message: `Manuscript ${paperNumber} is now Live!`, manuscript });
       }
 
       if (file && status !== "Final Script Sent") manuscript.feedbackFile = file;
@@ -1084,7 +1143,7 @@ export const reviseManuscript = async (req, res) => {
     if (manuscript.status === "Final Script Sent") {
       manuscript.status = "Final Author Approved";
     } else {
-      manuscript.status = "Submitted"; // Normal Revision
+      manuscript.status = "Revision Submitted"; // Normal Revision
     }
     // --- LOGIC CHANGE END ---
 

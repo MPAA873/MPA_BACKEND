@@ -81,18 +81,55 @@ export const submitReview = async (req, res) => {
 };
 
 
-// Admin and Editor can see all review tracking
+// Only Admin can see all review tracking
 
 export const getAllReviewTracking = async (req, res) => {
   try {
+
+    // ONLY FILTER FOR EDITOR
+    const matchStage =
+      req.user.role === "editor"
+        ? {
+            $match: {
+              "manuscript.assignedEditor": new mongoose.Types.ObjectId(req.user._id),
+            },
+          }
+        : null;
+
     const reviews = await Review.aggregate([
-      { $lookup: { from: "manuscripts", localField: "manuscriptId", foreignField: "_id", as: "manuscript" } },
+
+      // GET MANUSCRIPT
+      {
+        $lookup: {
+          from: "manuscripts",
+          localField: "manuscriptId",
+          foreignField: "_id",
+          as: "manuscript"
+        }
+      },
+
       { $unwind: "$manuscript" },
-      { $lookup: { from: "users", localField: "reviewerId", foreignField: "_id", as: "reviewer" } },
+
+      // SHOW ONLY ASSIGNED MANUSCRIPTS TO EDITOR
+      ...(matchStage ? [matchStage] : []),
+
+      // GET REVIEWER
+      {
+        $lookup: {
+          from: "users",
+          localField: "reviewerId",
+          foreignField: "_id",
+          as: "reviewer"
+        }
+      },
+
       { $unwind: "$reviewer" },
+
+      // GROUP DATA
       {
         $group: {
           _id: "$manuscriptId",
+
           manuscript: {
             $first: {
               _id: "$manuscript._id",
@@ -101,9 +138,10 @@ export const getAllReviewTracking = async (req, res) => {
               status: "$manuscript.status",
               editorRecommendation: "$manuscript.editorRecommendation",
               editorInternalComments: "$manuscript.editorInternalComments",
-              feedbackFile:"$manuscript.feedbackFile" 
+              feedbackFile: "$manuscript.feedbackFile"
             }
           },
+
           reviewers: {
             $push: {
               reviewId: "$_id",
@@ -122,39 +160,58 @@ export const getAllReviewTracking = async (req, res) => {
           }
         }
       },
-      { $sort: { "manuscript.manuscriptId": -1 } }
+
+      // SORT
+      {
+        $sort: {
+          "manuscript.manuscriptId": -1
+        }
+      }
+
     ]);
 
+    // ONLY FOR ADMIN → SHOW MANUSCRIPTS WITHOUT REVIEWS
+    let finalData = [...reviews];
 
+    if (req.user.role === "masterAdmin") {
 
-    const manuscriptsWithoutReviews = await Manuscript.find({
-      status: "Awaiting Admin Decision",
-    })
-      .select("_id manuscriptId title status editorRecommendation editorInternalComments feedbackFile")
-      .lean();
+      const manuscriptsWithoutReviews = await Manuscript.find({
+        status: "Awaiting Admin Decision",
+      })
+        .select(
+          "_id manuscriptId title status editorRecommendation editorInternalComments feedbackFile"
+        )
+        .lean();
 
-    // 3. Find which manuscripts already exist
-    const existingIds = new Set(reviews.map(r => r.manuscript._id.toString()));
+      const existingIds = new Set(
+        reviews.map((r) => r.manuscript._id.toString())
+      );
 
-    // 4. Filter missing ones
-    const missingManuscripts = manuscriptsWithoutReviews
-      .filter(m => !existingIds.has(m._id.toString()))
-      .map(m => ({
-        _id: m._id,
-        manuscript: m,
-        reviewers: [] // empty reviewers
-      }));
+      const missingManuscripts = manuscriptsWithoutReviews
+        .filter((m) => !existingIds.has(m._id.toString()))
+        .map((m) => ({
+          _id: m._id,
+          manuscript: m,
+          reviewers: []
+        }));
 
-    // 5. Merge both
-    const finalData = [...reviews, ...missingManuscripts];
+      finalData = [...reviews, ...missingManuscripts];
+    }
 
-    // 6. Final response
+    // FINAL RESPONSE
     res.status(200).json({
       success: true,
       reviews: finalData
     });
+
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 

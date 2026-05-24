@@ -138,6 +138,7 @@ const manuscriptSchema = new mongoose.Schema(
         "Editor Assigned",
         "Under Review",
         "Revision Required",
+        "Revision Submitted",
         "Awaiting Admin Decision",
         "Approved",
         "Final Script Sent",
