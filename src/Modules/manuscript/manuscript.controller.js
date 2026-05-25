@@ -17,12 +17,11 @@ import {
   buildNewSubmissionEmail
 } from "../../utils/emailTemplates.js";
 
-//  Volume + Issue calculate
+//  Volume + Issue calculate (Updated for Special 2026 Cycle)
 const getVolumeIssue = (publishDate) => {
   const date = new Date(publishDate);
-
   const year = date.getFullYear();
-  const month = date.getMonth() + 1;
+  const month = date.getMonth() + 1; // 1-12
 
   const baseYear = 2026;
   const volume = year - baseYear + 1;
@@ -30,18 +29,33 @@ const getVolumeIssue = (publishDate) => {
   let issue = 1;
   let issueLabel = "";
 
-  if (month <= 3) {
-    issue = 1;
-    issueLabel = "Jan–Mar";
-  } else if (month <= 6) {
-    issue = 2;
-    issueLabel = "Apr–Jun";
-  } else if (month <= 9) {
-    issue = 3;
-    issueLabel = "Jul–Sep";
-  } else {
-    issue = 4;
-    issueLabel = "Oct–Dec";
+  // 2026 ke liye special logic (April se start)
+  if (year === 2026) {
+    if (month >= 4 && month <= 6) {
+      issue = 1;
+      issueLabel = "Apr–Jun";
+    } else if (month >= 7 && month <= 9) {
+      issue = 2;
+      issueLabel = "Jul–Sep";
+    } else {
+      issue = 3;
+      issueLabel = "Oct–Dec";
+    }
+  }
+  else {
+    if (month <= 3) {
+      issue = 1;
+      issueLabel = "Jan–Mar";
+    } else if (month <= 6) {
+      issue = 2;
+      issueLabel = "Apr–Jun";
+    } else if (month <= 9) {
+      issue = 3;
+      issueLabel = "Jul–Sep";
+    } else {
+      issue = 4;
+      issueLabel = "Oct–Dec";
+    }
   }
 
   return { volume, issue, issueLabel };

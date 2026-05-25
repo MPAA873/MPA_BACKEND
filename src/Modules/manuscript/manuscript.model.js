@@ -129,7 +129,7 @@ const manuscriptSchema = new mongoose.Schema(
         publicId: { type: String },
       },
       manuscriptImage: { type: String, default: null },
-    },
+    },  
 
     status: {
       type: String,

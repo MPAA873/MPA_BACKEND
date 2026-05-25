@@ -18,8 +18,7 @@ const storage = new CloudinaryStorage({
 
     const nameWithoutExt = originalName.replace(/\.[^/.]+$/, "");
     const cleanName = nameWithoutExt.replace(/\s+/g, "_");
-
-    // ✅ FIX: All non-image files ko raw treat karo
+    
     const isRawFile =
       file.mimetype === "application/pdf" ||
       file.mimetype === "application/msword" ||
