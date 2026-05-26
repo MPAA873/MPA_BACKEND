@@ -92,7 +92,7 @@ router.delete(
 );
 
 router.get("/published/:id", getManuscriptById);
-router.get("/:id", protect, getManuscriptById);
+router.get("/:id", getManuscriptById);
 
 router.put("/admin/toggle-editor-choice/:id", protect, authorizeRoles("masterAdmin"), toggleEditorChoice)
 export default router;
