@@ -496,3 +496,50 @@ export const resetPassword = async (req, res) => {
     });
   }
 };
+
+// ===============================
+// MASTER ADMIN CHANGE USER PASSWORD
+// ===============================
+
+export const changeUserPasswordByAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+
+    // Validation
+    if (!newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "New password is required",
+      });
+    }
+
+    // Find user
+    const user = await User.findById(id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Password updated successfully",
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+};

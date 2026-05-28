@@ -1,6 +1,7 @@
 import express from "express";
 
 import {
+  changeUserPasswordByAdmin,
   createUser,
   deleteUser,
   forgotPassword,
@@ -74,21 +75,6 @@ router.get(
   passport.authenticate("google", { scope: ["profile", "email"] })
 )
 
-// router.get(
-//   "/google/callback",
-//   passport.authenticate("google", { session: false }),
-//   (req, res) => {
-//     const email = req.user.email;
-
-//      const isExistingUser =
-
-//     const token = jwt.sign(req.user, process.env.JWT_SECRET)
-
-//     // Redirect to frontend with token
-//     res.redirect(`${process.env.FRONTEND_URL}/login-success?token=${token}`)
-//   }
-// )
-
 router.get(
   "/google/callback",
   passport.authenticate("google", { session: false }),
@@ -125,6 +111,13 @@ router.get(
       res.status(500).json({ message: "Google login failed" });
     }
   }
+);
+
+router.put(
+  "/change-password/:id",
+  protect,
+  authorizeRoles("masterAdmin"),
+  changeUserPasswordByAdmin
 );
 
 
