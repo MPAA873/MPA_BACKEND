@@ -76,9 +76,84 @@ export const registerUser = async (req, res) => {
 
     // Send Email Logic
     const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
-    const message = `<h1>Email Verification</h1>
-                     <p>Please click the link below to verify your account:</p>
-                     <a href="${verificationUrl}">${verificationUrl}</a>`;
+
+    const message = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Your Account</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f7f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+        <tr>
+            <td align="center" style="padding: 40px 0;">
+                <table border="0" cellpadding="0" cellspacing="0" width="600" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow: hidden;">
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" style="background-color: #1a73e8; padding: 40px 20px;">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600; letter-spacing: 1px;">MPA Research</h1>
+                            <p style="color: #e8f0fe; margin-top: 10px; font-size: 16px;">Empowering Scientific Excellence</p>
+                        </td>
+                    </tr>
+
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <h2 style="color: #333333; margin-top: 0; font-size: 22px;">Welcome, ${name}!</h2>
+                            <p style="color: #555555; font-size: 16px; line-height: 1.6;">
+                                Thank you for joining our community of researchers. To get started and access your dashboard, please verify your email address by clicking the button below.
+                            </p>
+                            
+                            <div style="text-align: center; margin: 35px 0;">
+                                <a href="${verificationUrl}" style="background-color: #1a73e8; color: #ffffff; padding: 15px 35px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">Verify My Account</a>
+                            </div>
+
+                            <p style="color: #888888; font-size: 14px; line-height: 1.5;">
+                                If the button above doesn't work, copy and paste this link into your browser: <br>
+                                <a href="${verificationUrl}" style="color: #1a73e8; word-break: break-all;">${verificationUrl}</a>
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Support Section -->
+                    <tr>
+                        <td style="padding: 0 30px 30px 30px;">
+                            <div style="background-color: #f8f9fa; border-left: 4px solid #1a73e8; padding: 20px;">
+                                <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #333;">Need Help or Support?</h3>
+                                <p style="margin: 0 0 10px 0; font-size: 14px; color: #555;">
+                                    If you encounter any issues while creating your account or have general inquiries, please reach out to our team:
+                                </p>
+                                <table width="100%" style="font-size: 14px; color: #555;">
+                                    <tr>
+                                        <td style="padding: 5px 0;"><strong>Email:</strong> <a href="mailto:info@mparesearch.org" style="color: #1a73e8; text-decoration: none;">info@mparesearch.org</a></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 5px 0;"><strong>Phone:</strong> +91-9452292537, +91-8923580628</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 5px 0; font-style: italic; color: #777;">General inquiries and submission support</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td align="center" style="padding: 30px; background-color: #f1f3f4; color: #777777; font-size: 12px;">
+                            <p style="margin: 0 0 10px 0;">&copy; ${new Date().getFullYear()} MPA Research. All rights reserved.</p>
+                            <p style="margin: 0;">This is an automated email, please do not reply to this message.</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+`;
 
     try {
       await sendEmail({
@@ -117,9 +192,20 @@ export const verifyEmail = async (req, res) => {
     user.verificationToken = undefined;
     await user.save();
 
+    const token = generateToken(user._id);
+
     res.status(200).json({
       success: true,
-      message: "Email verified successfully. You can now login.",
+      message: "Email verified successfully",
+
+      token,
+
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
