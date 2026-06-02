@@ -626,11 +626,14 @@ export const assignReviewers = async (req, res) => {
         const reviewer = await User.findById(rId);
 
         if (reviewer) {
+          const defaultPassword = "Welcome@123";
+
           const html = buildReviewerInvitationEmail(
             reviewer.name,
-            manuscript.title
+            manuscript.title,
+            reviewer.email,
+            defaultPassword
           );
-
           sendEmail({
             email: reviewer.email,
             subject: "New Manuscript Review Invitation",

@@ -169,7 +169,12 @@ export const buildPublishedEmail = (researcherName, manuscriptId, publishedAt, v
 };
 
 // 🟣 5. Reviewer Invitation Email Template
-export const buildReviewerInvitationEmail = (reviewerName, manuscriptTitle) => {
+export const buildReviewerInvitationEmail = (
+  reviewerName,
+  manuscriptTitle,
+  reviewerEmail,
+  reviewerPassword
+) => {
   const content = `
     <h2 style="color: #2563eb; font-size: 22px; margin-top: 0;">Review Request: MPA Research 📑</h2>
     <p style="font-size: 16px; line-height: 1.6;">Dear <b>Dr. ${reviewerName}</b>,</p>
@@ -181,6 +186,57 @@ export const buildReviewerInvitationEmail = (reviewerName, manuscriptTitle) => {
     </div>
     
     <p style="font-size: 16px; line-height: 1.6;">Please log in to your reviewer dashboard to view the abstract and securely <b>Accept</b> or <b>Decline</b> this invitation.</p>
+
+    <div style="
+  background-color: #f8fafc;
+  border: 1px solid #cbd5e1;
+  padding: 20px;
+  margin: 25px 0;
+  border-radius: 8px;
+">
+  <h3 style="
+    margin-top:0;
+    color:#1e3a8a;
+    font-size:16px;
+  ">
+    Reviewer Login Credentials
+  </h3>
+
+  <p style="margin:8px 0; font-size:15px;">
+    <strong>Login URL:</strong>
+    <a href="https://admin.mparesearch.com">
+      https://admin.mparesearch.com
+    </a>
+  </p>
+
+  <p style="margin:8px 0; font-size:15px;">
+    <strong>Email:</strong> ${reviewerEmail}
+  </p>
+
+  <p style="margin:8px 0; font-size:15px;">
+    <strong>Password:</strong> ${reviewerPassword}
+  </p>
+</div>
+
+<div style="
+  background-color:#fff7ed;
+  border-left:4px solid #ea580c;
+  padding:18px;
+  border-radius:6px;
+  margin-top:20px;
+">
+  <p style="
+    margin:0;
+    color:#9a3412;
+    font-size:14px;
+    line-height:1.7;
+  ">
+    <strong>Note:</strong>
+    Please revert back to this mail and cc
+    <b>info@mparesearch.com</b>
+    for any login-related issues or technical support.
+  </p>
+</div>
   `;
   return baseEmailTemplate("Review Request", content, "#2563eb"); // Blue
 };
