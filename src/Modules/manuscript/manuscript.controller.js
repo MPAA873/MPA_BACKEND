@@ -253,7 +253,7 @@ export const submitManuscript = async (req, res) => {
         parsedAuthors[0]?.name || "Unknown Author"
       );
 
-      sendEmail({
+      await sendEmail({
         email: admin.email,
         subject: `New Manuscript Submmited ${mId}`,
         html,
@@ -415,10 +415,10 @@ export const updateSubmissionStatus = async (req, res) => {
         if (file) manuscript.feedbackFile = file;
         await manuscript.save();
         const researcher = manuscript.submittedBy;
-        const revisionToken = jwt.sign({ id: researcher._id }, process.env.JWT_SECRET, { expiresIn: "1d" });
+        const revisionToken = jwt.sign({ id: researcher._id }, process.env.JWT_SECRET, { expiresIn: "30d" });
         const revisionUrl = `${process.env.FRONTEND_URL}/revise-manuscript/${manuscript._id}?token=${revisionToken}`;
         const html = buildRevisionEmail(researcher.name, manuscript.manuscriptId, feedback, revisionUrl);
-        sendEmail({ email: researcher.email, subject: `Revision Required: ${manuscript.manuscriptId}`, html, attachments: file ? [{ filename: "Editor-Comments.pdf", path: file }] : [] }).catch(err => console.error(err));
+        await sendEmail({ email: researcher.email, subject: `Revision Required: ${manuscript.manuscriptId}`, html, attachments: file ? [{ filename: "Editor-Comments.pdf", path: file }] : [] }).catch(err => console.error(err));
         return res.status(200).json({ success: true, message: "Revision request sent.", manuscript });
       } else {
         manuscript.status = "Awaiting Admin Decision";
@@ -441,7 +441,7 @@ export const updateSubmissionStatus = async (req, res) => {
         await manuscript.save();
 
         const researcher = manuscript.submittedBy;
-        const revisionToken = jwt.sign({ id: researcher._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+        const revisionToken = jwt.sign({ id: researcher._id }, process.env.JWT_SECRET, { expiresIn: "30d" });
         const revisionUrl = `${process.env.FRONTEND_URL}/revise-manuscript/${manuscript._id}?token=${revisionToken}`;
 
         const html = `
@@ -481,7 +481,7 @@ export const updateSubmissionStatus = async (req, res) => {
         manuscript.revisionFeedback = feedback || "";
         manuscript.isRevised = false;
         const researcher = manuscript.submittedBy;
-        const revisionToken = jwt.sign({ id: researcher._id }, process.env.JWT_SECRET, { expiresIn: "1d" });
+        const revisionToken = jwt.sign({ id: researcher._id }, process.env.JWT_SECRET, { expiresIn: "30d" });
         const revisionUrl = `${process.env.FRONTEND_URL}/revise-manuscript/${manuscript._id}?token=${revisionToken}`;
         const html = buildRevisionEmail(researcher.name, manuscript.manuscriptId, feedback, revisionUrl);
         await sendEmail({ email: researcher.email, subject: `Revision Required: ${manuscript.manuscriptId}`, html, attachments: file ? [{ filename: "Revision.pdf", path: file }] : [] });
@@ -588,7 +588,7 @@ export const assignReviewers = async (req, res) => {
       });
     }
 
-    if (!reviewerIds || reviewerIds.length < 0) {
+    if (!reviewerIds || reviewerIds.length <= 0) {
       return res.status(400).json({
         success: false,
         message: "Minimum 2 reviewers are required",
@@ -634,7 +634,7 @@ export const assignReviewers = async (req, res) => {
             reviewer.email,
             defaultPassword
           );
-          sendEmail({
+          await sendEmail({
             email: reviewer.email,
             subject: "New Manuscript Review Invitation",
             html,
@@ -672,7 +672,7 @@ export const assignReviewers = async (req, res) => {
               manuscript.title
             );
 
-            sendEmail({
+            await sendEmail({
               email: reviewer.email,
               subject: "Revised Manuscript Review Request",
               html,

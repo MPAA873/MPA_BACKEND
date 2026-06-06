@@ -1,67 +1,39 @@
+
+
 import nodemailer from "nodemailer";
 
 const sendEmail = async (options) => {
-  const transporter = nodemailer.createTransport({
-    host: "smtpout.secureserver.net",
-    port: 465,
-    secure: true,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
-  const mailOptions = {
-    from: `MPA Research Editor <${process.env.EMAIL_USER}>`,
-    to: options.email,
-    subject: options.subject,
-    text: options.message,
-    html: options.html,
-    attachments: options.attachments || [],
-  };
+  try {
+    const transporter = nodemailer.createTransport({
+      host: "smtpout.secureserver.net",
+      port: 465,
+      secure: true,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
 
-  await transporter.sendMail(mailOptions);
+    const mailOptions = {
+      from: `MPA Research Editor <${process.env.EMAIL_USER}>`,
+      to: options.email,
+      subject: options.subject,
+      text: options.message,
+      html: options.html,
+      attachments: options.attachments || [],
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+
+    console.log("Email sent successfully:", info.messageId);
+
+    return info;
+  } catch (error) {
+    console.error("Email sending failed:", error);
+
+    // Prevent server crash
+    return null;
+  }
 };
 
 export default sendEmail;
-
-
-
-
-
-
-
-
-
-// import { Resend } from "resend";
-// import fs from "fs";
-
-// const resend = new Resend(process.env.RESEND_API_KEY);
-
-// const sendEmail = async (options) => {
-//   try {
-
-//     let attachments = [];
-
-//     if (options.attachments && options.attachments.length > 0) {
-//       attachments = options.attachments.map((file) => ({
-//         filename: file.filename,
-//         content: fs.readFileSync(file.path),
-//       }));
-//     }
-
-//     const response = await resend.emails.send({
-//       from: "Journal Portal <onboarding@resend.dev>",
-//       to: options.email,
-//       subject: options.subject,
-//       html: options.html || `<p>${options.message}</p>`,
-//       attachments,
-//     });
-
-//     return response;
-
-//   } catch (error) {
-//     console.error("Email sending error:", error);
-//   }
-// };
-
-// export default sendEmail;
