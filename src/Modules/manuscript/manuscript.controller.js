@@ -449,7 +449,9 @@ export const updateSubmissionStatus = async (req, res) => {
             <h2>Action Required: Final Proof Review</h2>
             <p>Dear ${researcher.name},</p>
             <p>Your manuscript <b>${manuscript.manuscriptId}</b> is approved. We have prepared the final version in our template.</p>
+              <p>Once You Accept and upload the proofread document, we will notify you with the issue and volumne and published details</p>
             <p>Please download the attachment, review it, and re-upload it via the link below to confirm.</p>
+          
             <a href="${revisionUrl}" style="background: #10B981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 10px;">Upload Final Script</a>
           </div>
         `;
@@ -538,11 +540,10 @@ export const updateSubmissionStatus = async (req, res) => {
                   <p style="margin: 0 0 10px; font-size: 14px; color: #64748b; font-weight: 700; text-transform: uppercase;">Publication Details</p>
                   <p style="margin: 0 0 12px; font-size: 18px; color: #0f172a; font-weight: 800;">${manuscript.title}</p>
                   <p style="margin: 5px 0; font-size: 15px; color: #334155;"><b>Citation:</b> Vol. ${volume}, Issue ${issue} (${issueLabel})</p>
-                  <p style="margin: 5px 0; font-size: 15px; color: #334155;"><b>Paper Number:</b> ${paperNumber}</p>
                 </div>
 
                 <div style="text-align: center; margin-top: 40px;">
-                  <a href="${websiteUrl}" style="background: #0f172a; color: #ffffff; padding: 20px 40px; border-radius: 14px; text-decoration: none; font-weight: 800; display: inline-block; box-shadow: 0 10px 20px rgba(15,23,42,0.2);">View Public Article</a>
+                  <a href="${websiteUrl}" style="background: #0f172a; color: #ffffff; padding: 20px 40px; border-radius: 14px; text-decoration: none; font-weight: 800; display: inline-block; box-shadow: 0 10px 20px rgba(15,23,42,0.2);">View Published Article</a>
                 </div>
               </div>
               <div style="background: #f1f5f9; padding: 30px; text-align: center; color: #94a3b8; font-size: 13px;">
