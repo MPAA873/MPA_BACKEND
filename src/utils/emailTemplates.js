@@ -242,20 +242,78 @@ export const buildReviewerInvitationEmail = (
 };
 
 // 🟣 6. Reviewer Re-Review (Revised Manuscript) Email Template
-export const buildReviewerReReviewEmail = (reviewerName, manuscriptTitle) => {
+export const buildReviewerReReviewEmail = (
+  reviewerName,
+  manuscriptTitle,
+  username,
+  portalLink
+) => {
   const content = `
-    <h2 style="color: #8b5cf6; font-size: 22px; margin-top: 0;">Revised Manuscript Ready for Review 🔄</h2>
-    <p style="font-size: 16px; line-height: 1.6;">Dear <b>Dr. ${reviewerName}</b>,</p>
-    <p style="font-size: 16px; line-height: 1.6;">The author has submitted a revised version of the manuscript based on the previous feedback. We kindly request you to evaluate the latest modifications.</p>
-    
+    <h2 style="color: #8b5cf6; font-size: 22px; margin-top: 0;">
+      Revised Manuscript Ready for Review 🔄
+    </h2>
+
+    <p style="font-size: 16px; line-height: 1.6;">
+      Dear <b>Dr. ${reviewerName}</b>,
+    </p>
+
+    <p style="font-size: 16px; line-height: 1.6;">
+      The author has submitted a revised version of the manuscript based on the previous review comments.
+      We kindly request you to evaluate the revised manuscript and provide your expert feedback.
+    </p>
+
     <div style="background-color: #f5f3ff; border: 1px solid #ddd6fe; padding: 20px; margin: 25px 0; border-radius: 6px;">
-      <p style="margin: 0; font-size: 13px; color: #4c1d95; text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">Manuscript Title:</p>
-      <p style="margin: 8px 0 0 0; font-size: 16px; color: #5b21b6; font-weight: 500;"><i>"${manuscriptTitle}"</i></p>
+      <p style="margin: 0; font-size: 13px; color: #4c1d95; text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">
+        Manuscript Title
+      </p>
+      <p style="margin: 8px 0 0 0; font-size: 16px; color: #5b21b6; font-weight: 500;">
+        <i>"${manuscriptTitle}"</i>
+      </p>
     </div>
-    
-    <p style="font-size: 16px; line-height: 1.6;">Please log in to your dashboard to proceed with the next round of evaluation.</p>
+
+    <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:20px; border-radius:8px; margin:25px 0;">
+      <h3 style="margin-top:0; color:#1e293b;">
+        Reviewer Portal Access
+      </h3>
+
+      <p style="margin:10px 0;">
+        <strong>Portal Link:</strong><br>
+        <a href="${portalLink}" target="_blank">${portalLink}</a>
+      </p>
+
+      <p style="margin:10px 0;">
+        <strong>Username:</strong> ${username}
+      </p>
+
+      <p style="margin:10px 0;">
+        <strong>Password:</strong> Welcome@123
+      </p>
+    </div>
+
+    <p style="font-size: 16px; line-height: 1.6;">
+      Please log in to the reviewer portal and complete your evaluation at your earliest convenience.
+    </p>
+
+    <p style="font-size: 16px; line-height: 1.6;">
+      For any assistance regarding access or the review process, kindly reply to this email and keep
+      <b>info@mparesearch.com</b> in CC for prompt support.
+    </p>
+
+    <p style="font-size: 16px; line-height: 1.6;">
+      We sincerely appreciate your valuable contribution to maintaining the quality and integrity of scholarly publishing.
+    </p>
+
+    <p style="margin-top:30px;">
+      Kind Regards,<br>
+      <strong>MPA Research Editorial Office</strong>
+    </p>
   `;
-  return baseEmailTemplate("Revised Manuscript Review", content, "#8b5cf6"); // Purple
+
+  return baseEmailTemplate(
+    "Revised Manuscript Review",
+    content,
+    "#8b5cf6"
+  );
 };
 
 // 🟢 7. New Submission Email Template (Admin Notification)

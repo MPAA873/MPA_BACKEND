@@ -670,7 +670,9 @@ export const assignReviewers = async (req, res) => {
           if (reviewer) {
             const html = buildReviewerReReviewEmail(
               reviewer.name,
-              manuscript.title
+              manuscript.title,
+              reviewer.email,
+              "https://admin.mparesearch.com"
             );
 
             await sendEmail({
