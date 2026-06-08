@@ -178,7 +178,7 @@ export const buildReviewerInvitationEmail = (
   const content = `
     <h2 style="color: #2563eb; font-size: 22px; margin-top: 0;">Review Request: MPA Research 📑</h2>
     <p style="font-size: 16px; line-height: 1.6;">Dear <b>Dr. ${reviewerName}</b>,</p>
-    <p style="font-size: 16px; line-height: 1.6;">We recognize your expertise in your field and would be honored if you could review a newly submitted manuscript for our journal.</p>
+    <p style="font-size: 16px; line-height: 1.6;">We recognize your expertise in your field and would be honored if you could review a submitted manuscript for our journal.</p>
     
     <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; padding: 20px; margin: 25px 0; border-radius: 6px;">
       <p style="margin: 0; font-size: 13px; color: #1e3a8a; text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">Manuscript Title:</p>
