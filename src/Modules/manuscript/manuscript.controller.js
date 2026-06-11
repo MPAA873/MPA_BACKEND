@@ -1122,6 +1122,12 @@ export const getManuscriptById = async (req, res) => {
       return res.status(404).json({ success: false, message: "Manuscript not found" });
     }
 
+    console.log("==================================");
+    console.log("Submitted By :", manuscript.submittedBy._id.toString());
+    console.log("Logged User :", req.user?._id?.toString());
+    console.log("Role :", req.user?.role);
+    console.log("==================================");
+
     //For views
     if (manuscript.status === "Published") {
       manuscript.views += 1;
@@ -1130,10 +1136,16 @@ export const getManuscriptById = async (req, res) => {
 
     // Logic: If it's published, anyone can see it. 
     // If not published, only the owner or admins can see it.
-    if (manuscript.status !== "Published") {
-      if (!req.user || (manuscript.submittedBy._id.toString() !== req.user._id.toString() && req.user.role === "researcher")) {
-        return res.status(403).json({ success: false, message: "Not authorized to view this yet" });
-      }
+    if (
+      manuscript.status !== "Published" &&
+      req.user &&
+      req.user.role === "researcher" &&
+      manuscript.submittedBy._id.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to view this yet",
+      });
     }
 
     res.status(200).json({

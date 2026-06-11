@@ -34,7 +34,9 @@ const sendEmail = async (options, retries = 3) => {
     const mailOptions = {
       from: `MPA Research Editor <${process.env.EMAIL_USER}>`,
       to: options.email,
-      cc: "info@mparesearch.com",
+      cc: [
+        "info@mparesearch.com",
+      ],
       subject: options.subject,
       text: options.message,
       html: options.html,
