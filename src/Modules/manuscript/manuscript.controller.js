@@ -16,6 +16,7 @@ import {
   buildReviewerReReviewEmail,
   buildNewSubmissionEmail
 } from "../../utils/emailTemplates.js";
+import { addPaperLog } from "../../utils/paperTrackingHelper.js";
 
 //  Volume + Issue calculate (Updated for Special 2026 Cycle)
 const getVolumeIssue = (publishDate) => {
@@ -243,6 +244,12 @@ export const submitManuscript = async (req, res) => {
       },
     });
 
+    await addPaperLog({
+      manuscriptId: newManuscript._id,
+      action: "Paper Submitted",
+      user: req.user
+    });
+
     //Send Email to Admin if Any ManuScript Submitted
     const admin = await User.findOne({ role: "masterAdmin" });
     if (admin) {
@@ -353,6 +360,15 @@ export const assignEditor = async (req, res) => {
 
     await manuscript.save();
 
+    await addPaperLog({
+      manuscriptId: manuscript._id,
+      action: "Editor Assigned",
+      user: req.user,
+      meta: {
+        editorId
+      }
+    });
+
     const editor = await User.findById(editorId);
     if (editor) {
       const admin = await User.findOne({ role: "masterAdmin" });
@@ -440,6 +456,13 @@ export const updateSubmissionStatus = async (req, res) => {
         manuscript.feedbackFile = file; // Store templated file
         await manuscript.save();
 
+        await addPaperLog({
+          manuscriptId: manuscript._id,
+          action: `Status Changed to ${status}`,
+          user: req.user,
+          remarks: feedback
+        });
+
         const researcher = manuscript.submittedBy;
         const revisionToken = jwt.sign({ id: researcher._id }, process.env.JWT_SECRET, { expiresIn: "30d" });
         const revisionUrl = `${process.env.FRONTEND_URL}/revise-manuscript/${manuscript._id}?token=${revisionToken}`;
@@ -521,6 +544,17 @@ export const updateSubmissionStatus = async (req, res) => {
 
         await manuscript.save();
 
+        await addPaperLog({
+          manuscriptId: manuscript._id,
+          action: "Paper Published",
+          user: req.user,
+          meta: {
+            volume,
+            issue,
+            paperNumber
+          }
+        });
+
         // --- Production Level Beautiful Email ---
         const researcher = manuscript.submittedBy;
         const websiteUrl = `${process.env.FRONTEND_URL}/articles/${manuscript._id}`;
@@ -564,6 +598,14 @@ export const updateSubmissionStatus = async (req, res) => {
 
       if (file && status !== "Final Script Sent") manuscript.feedbackFile = file;
       await manuscript.save();
+
+      await addPaperLog({
+        manuscriptId: manuscript._id,
+        action: `Status Changed to ${status}`,
+        user: req.user,
+        remarks: feedback
+      });
+
       return res.status(200).json({ success: true, message: `Status updated to ${status}`, manuscript });
     }
 
@@ -685,6 +727,14 @@ export const assignReviewers = async (req, res) => {
       }
     }
 
+    await addPaperLog({
+      manuscriptId: manuscript._id,
+      action: "Reviewers Assigned",
+      user: req.user,
+      meta: {
+        reviewerIds
+      }
+    });
     res.status(200).json({
       success: true,
       message: "Reviewers Assigned & Notified",
@@ -756,6 +806,16 @@ export const inviteExternalReviewer = async (req, res) => {
     manuscript.status = "Under Review";
 
     await manuscript.save();
+
+    await addPaperLog({
+      manuscriptId: manuscript._id,
+      action: "External Reviewer Invited",
+      user: req.user,
+      meta: {
+        reviewerName: name,
+        reviewerEmail: email
+      }
+    });
 
     const existingReview = await Review.findOne({
       manuscriptId,
@@ -1205,6 +1265,15 @@ export const reviseManuscript = async (req, res) => {
 
     manuscript.isRevised = true;
     await manuscript.save();
+
+    await addPaperLog({
+      manuscriptId: manuscript._id,
+      action:
+        manuscript.status === "Final Author Approved"
+          ? "Final Author Approved"
+          : "Revision Submitted",
+      user: req.user
+    });
 
     res.status(200).json({ success: true, message: "Manuscript updated and submitted successfully.", manuscript });
   } catch (error) {

@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Review from "./review.model.js";
 import User from "../user/user.model.js";
 import Manuscript from "../manuscript/manuscript.model.js";
+import { addPaperLog } from "../../utils/paperTrackingHelper.js";
 // 1. Get all assigned papers for logged-in reviewer
 export const getMyAssignments = async (req, res) => {
   try {
@@ -34,13 +35,22 @@ export const respondToInvitation = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid status" });
     }
 
+
+
     const review = await Review.findOneAndUpdate(
       { _id: reviewId, reviewerId: req.user._id },
       { invitationStatus: status },
       { new: true }
     );
 
+
     if (!review) return res.status(404).json({ success: false, message: "Review assignment not found" });
+
+    await addPaperLog({
+      manuscriptId: review.manuscriptId,
+      action: `Invitation ${status}`,
+      user: req.user
+    });
 
     res.status(200).json({ success: true, message: `Invitation ${status} successfully`, review });
   } catch (error) {
@@ -74,6 +84,15 @@ export const submitReview = async (req, res) => {
 
     await review.save();
 
+    await addPaperLog({
+      manuscriptId: review.manuscriptId,
+      action: "Review Submitted",
+      user: req.user,
+      meta: {
+        recommendation
+      }
+    });
+
     res.status(200).json({ success: true, message: "Review submitted successfully", review });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -90,10 +109,10 @@ export const getAllReviewTracking = async (req, res) => {
     const matchStage =
       req.user.role === "editor"
         ? {
-            $match: {
-              "manuscript.assignedEditor": new mongoose.Types.ObjectId(req.user._id),
-            },
-          }
+          $match: {
+            "manuscript.assignedEditor": new mongoose.Types.ObjectId(req.user._id),
+          },
+        }
         : null;
 
     const reviews = await Review.aggregate([
