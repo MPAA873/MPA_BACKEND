@@ -129,7 +129,7 @@ const manuscriptSchema = new mongoose.Schema(
         publicId: { type: String },
       },
       manuscriptImage: { type: String, default: null },
-    },  
+    },
 
     status: {
       type: String,
@@ -261,6 +261,13 @@ const manuscriptSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+
+    issueId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Issue",
+      default: null,
+    },
+
     volume: {
       type: Number,
       default: null,
@@ -293,18 +300,6 @@ const manuscriptSchema = new mongoose.Schema(
     isEditorChoice: {
       type: Boolean,
       default: false,
-    },
-    scanId: String,
-
-    plagiarismScore: {
-      type: Number,
-      default: 0,
-    },
-
-    plagiarismStatus: {
-      type: String,
-      enum: ["pending", "completed"],
-      default: "pending",
     },
   },
   { timestamps: true }

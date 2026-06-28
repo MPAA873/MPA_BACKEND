@@ -2,11 +2,11 @@ import sendEmail from "../../utils/sendEmail.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import Manuscript from "./manuscript.model.js";
+import Issue from "../add-hoc-issue/issue.model.js";
 import Review from "../review/review.model.js";
 import User from "../user/user.model.js";
 import { deleteFromCloudinary } from "../../utils/cloudinaryHelper.js";
 import { buildEditorAssignmentEmail } from "../../utils/emailTemplates.js";
-import { submitUrlToCopyleaks } from "../../utils/copyleaksService.js";
 import {
   buildRejectionEmail,
   buildRevisionEmail,
@@ -17,8 +17,9 @@ import {
   buildNewSubmissionEmail
 } from "../../utils/emailTemplates.js";
 import { addPaperLog } from "../../utils/paperTrackingHelper.js";
+import mongoose from "mongoose";
 
-//  Volume + Issue calculate (Updated for Special 2026 Cycle)
+
 const getVolumeIssue = (publishDate) => {
   const date = new Date(publishDate);
   const year = date.getFullYear();
@@ -60,6 +61,24 @@ const getVolumeIssue = (publishDate) => {
   }
 
   return { volume, issue, issueLabel };
+};
+
+const getRegularIssueLabel = (volume, issueNumber) => {
+
+  if (volume === 1) {
+    return {
+      1: "Apr-Jun",
+      2: "Jul-Sep",
+      3: "Oct-Dec",
+    }[issueNumber];
+  }
+
+  return {
+    1: "Jan-Mar",
+    2: "Apr-Jun",
+    3: "Jul-Sep",
+    4: "Oct-Dec",
+  }[issueNumber];
 };
 
 //  Paper number generate
@@ -177,11 +196,7 @@ export const submitManuscript = async (req, res) => {
     const manuscriptUrl =
       req.files?.manuscriptFile?.[0]?.path || null;
 
-    //  Copyleaks call
-    let scanId = null;
-    // if (manuscriptUrl) {
-    //   scanId = await submitUrlToCopyleaks(manuscriptUrl);
-    // }
+
 
     // Create manuscript
     const newManuscript = await Manuscript.create({
@@ -193,8 +208,6 @@ export const submitManuscript = async (req, res) => {
       keywords: keywords ? keywords.split(",") : [],
       authors: parsedAuthors,
       submittedBy: req.user._id,
-      scanId: scanId,
-      plagiarismStatus: "pending",
       files: {
         manuscriptFile: req.files?.manuscriptFile
           ? {
@@ -272,7 +285,6 @@ export const submitManuscript = async (req, res) => {
       message: "Manuscript Submitted",
       manuscriptId: mId,
       manuscript: newManuscript,
-      scanId: scanId,
     });
   } catch (error) {
     console.error("FULL ERROR:", error);
@@ -286,7 +298,7 @@ export const submitManuscript = async (req, res) => {
 // Get submissions of logged-in researcher
 export const getMySubmissions = async (req, res) => {
   try {
-    const submissions = await Manuscript.find({ submittedBy: req.user._id });
+    const submissions = await Manuscript.find({ submittedBy: req.user._id }).populate("issueId");
 
     res.status(200).json({
       success: true,
@@ -312,6 +324,7 @@ export const getAllSubmissions = async (req, res) => {
     const submissions = await Manuscript.find()
       .populate("submittedBy", "name email")
       .populate("assignedEditor", "name email")
+      .populate("issueId")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -401,7 +414,14 @@ export const assignEditor = async (req, res) => {
 
 export const updateSubmissionStatus = async (req, res) => {
   try {
-    const { manuscriptId, status, feedback, publishDate } = req.body;
+    const {
+      manuscriptId,
+      status,
+      feedback,
+      publishDate,
+      issueId
+    } = req.body;
+
     const userRole = req.user.role;
     const file = req.file ? req.file.path : null;
 
@@ -414,11 +434,15 @@ export const updateSubmissionStatus = async (req, res) => {
       return res.status(404).json({ success: false, message: "Manuscript not found" });
     }
 
-    const finalizedStatus = ["Published", "Rejected"];
-    if (finalizedStatus.includes(manuscript.status)) {
+    const finalizedStatus = ["Rejected", "Published"];
+
+    if (
+      finalizedStatus.includes(manuscript.status)
+    ) {
       return res.status(400).json({
         success: false,
-        message: `Modification Denied: This manuscript is already ${manuscript.status}`,
+        message:
+          `Modification Denied: This manuscript is already ${manuscript.status}`
       });
     }
 
@@ -525,11 +549,87 @@ export const updateSubmissionStatus = async (req, res) => {
 
         manuscript.status = "Published";
         manuscript.publishedAt = new Date();
+        if (!manuscript.publishDate) {
+          manuscript.publishDate = manuscript.publishedAt;
+        }
 
-        // Accurate Volume/Issue Calculation
-        const { volume, issue, issueLabel } = getVolumeIssue(new Date());
-        const { paperSequence, paperNumber } = await generatePaperNumber(volume, issue);
+        let volume;
+        let issue;
+        let issueLabel;
 
+        if (issueId) {
+
+          // Ad-Hoc Issue
+          if (mongoose.Types.ObjectId.isValid(issueId)) {
+
+            const selectedIssue = await Issue.findOne({
+              _id: issueId,
+              status: "Active"
+            });
+
+            if (!selectedIssue) {
+              return res.status(404).json({
+                success: false,
+                message: "Issue not found"
+              });
+            }
+
+            volume = selectedIssue.volume;
+            issue = selectedIssue.issueNumber;
+            issueLabel = selectedIssue.label;
+          }
+
+          // Regular Issue (1-4)
+          else {
+            issue = Number(issueId);
+
+            const result = getVolumeIssue(
+              manuscript.publishDate || manuscript.publishedAt || new Date()
+            );
+
+            volume = result.volume;
+
+            // issueLabel = {
+            //   1: "Jan–Mar",
+            //   2: "Apr–Jun",
+            //   3: "Jul–Sep",
+            //   4: "Oct–Dec"
+            // }[issue];
+            issueLabel = getRegularIssueLabel(volume, issue);
+
+            if (![1, 2, 3, 4].includes(issue)) {
+              return res.status(400).json({
+                success: false,
+                message: "Invalid issue selected"
+              });
+            }
+
+          }
+
+        }
+        else {
+
+          const result = getVolumeIssue(
+            manuscript.publishDate || manuscript.publishedAt || new Date()
+          );
+
+          volume = result.volume;
+          issue = result.issue;
+          issueLabel = result.issueLabel;
+
+        }
+        const {
+          paperSequence,
+          paperNumber
+        } = await generatePaperNumber(
+          volume,
+          issue
+        );
+
+        manuscript.issueId =
+          issueId && mongoose.Types.ObjectId.isValid(issueId)
+            ? issueId
+            : null;
         manuscript.volume = volume;
         manuscript.issue = issue;
         manuscript.issueLabel = issueLabel;
@@ -573,7 +673,10 @@ export const updateSubmissionStatus = async (req, res) => {
                 <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 25px; margin: 30px 0;">
                   <p style="margin: 0 0 10px; font-size: 14px; color: #64748b; font-weight: 700; text-transform: uppercase;">Publication Details</p>
                   <p style="margin: 0 0 12px; font-size: 18px; color: #0f172a; font-weight: 800;">${manuscript.title}</p>
-                  <p style="margin: 5px 0; font-size: 15px; color: #334155;"><b>Citation:</b> Vol. ${volume}, Issue ${issue} (${issueLabel})</p>
+  <p style="margin: 5px 0; font-size: 15px; color: #334155;">
+  <b>Citation:</b>
+  Volume ${volume} (${issueLabel})
+</p>
                 </div>
 
                 <div style="text-align: center; margin-top: 40px;">
@@ -1282,7 +1385,7 @@ export const reviseManuscript = async (req, res) => {
 };
 
 
-//Get Publish Article For Website
+//Get Publish Article For Website(Home Page API)
 export const getPublishedArticles = async (req, res) => {
   try {
     const { search, discipline, page = 1, limit = 10, type, year } = req.query;
@@ -1290,21 +1393,80 @@ export const getPublishedArticles = async (req, res) => {
 
     // 1. Logic for specialized sections (Home Page)
     if (type === "homepage") {
-      const editorChoice = await Manuscript.find({ status: "Published", isEditorChoice: true })
+      const editorChoice = await Manuscript.find({
+        status: "Published",
+        isEditorChoice: true
+      })
+        .populate("issueId")
         .limit(3)
         .sort({ publishedAt: -1 });
 
-      const currentIssue = await Manuscript.find({ status: "Published" })
-        .limit(6)
+
+      const { volume: currentVol, issue: currentIss } = getVolumeIssue(new Date());
+
+      const currentIssue = await Manuscript.find({
+        status: "Published",
+        volume: currentVol,
+        issue: currentIss,
+      })
+        .populate("issueId")
         .sort({ publishedAt: -1 });
 
-      const mostViewed = await Manuscript.find({ status: "Published" })
+
+      const adHocIssues = await Manuscript.aggregate([
+        {
+          $match: {
+            status: "Published",
+            issueId: { $ne: null }
+          }
+        },
+        {
+          $lookup: {
+            from: "issues",
+            localField: "issueId",
+            foreignField: "_id",
+            as: "issue"
+          }
+        },
+        {
+          $unwind: "$issue"
+        },
+        {
+          $match: {
+            "issue.isAdHoc": true,
+            "issue.status": "Active"
+          }
+        },
+        {
+          $sort: {
+            publishedAt: -1
+          }
+        },
+        {
+          $group: {
+            _id: "$issueId",
+            issue: { $first: "$issue" },
+            papers: { $push: "$$ROOT" }
+          }
+        }
+      ]);
+
+
+      const mostViewed = await Manuscript.find({
+        status: "Published"
+      })
+        .populate("issueId")
         .limit(5)
         .sort({ views: -1 });
 
       return res.status(200).json({
         success: true,
-        data: { editorChoice, currentIssue, mostViewed }
+        data: {
+          editorChoice,
+          currentIssue,
+          adHocIssues,
+          mostViewed,
+        },
       });
     }
 
@@ -1333,6 +1495,7 @@ export const getPublishedArticles = async (req, res) => {
 
     const total = await Manuscript.countDocuments(query);
     const articles = await Manuscript.find(query)
+      .populate("issueId")
       .sort({ publishedAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -1378,57 +1541,235 @@ export const getPublishedYears = async (req, res) => {
 };
 
 // Admin: Edit Manuscript Details
+// export const editManuscriptByAdmin = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const { title, abstract, keywords, authors, discipline, manuscriptType } = req.body;
+
+//     const manuscript = await Manuscript.findById(id);
+//     if (!manuscript) {
+//       return res.status(404).json({ success: false, message: "Manuscript not found" });
+//     }
+
+//     // Parse authors if provided
+//     let parsedAuthors = manuscript.authors;
+//     if (authors) {
+//       try {
+//         parsedAuthors = JSON.parse(authors);
+//         if (!Array.isArray(parsedAuthors) || parsedAuthors.length < 1 || parsedAuthors.length > 15) {
+//           return res.status(400).json({ success: false, message: "Authors must be an array (1-15 authors)" });
+//         }
+//       } catch (err) {
+//         return res.status(400).json({ success: false, message: "Invalid authors format" });
+//       }
+//     }
+
+//     // Handle new file uploads (Replace old files if new ones are uploaded)
+//     const updatedFiles = { ...manuscript.files };
+//     if (req.files) {
+//       const fileFields = ["manuscriptFile", "ethicalDeclaration", "aiReport", "tables", "figures", "coverLetter"];
+
+//       for (const field of fileFields) {
+//         if (req.files[field]) {
+//           // Delete old file from Cloudinary
+//           if (updatedFiles[field]?.publicId) {
+//             await deleteFromCloudinary(updatedFiles[field].publicId);
+//           }
+
+//           updatedFiles[field] = {
+//             url: req.files[field][0].path,
+//             publicId: req.files[field][0].filename,
+//           };
+//         }
+//       }
+//     }
+
+//     // Update the document
+//     manuscript.title = title || manuscript.title;
+//     manuscript.abstract = abstract || manuscript.abstract;
+//     manuscript.discipline = discipline || manuscript.discipline;
+//     manuscript.manuscriptType = manuscriptType || manuscript.manuscriptType;
+//     manuscript.keywords = keywords ? keywords.split(",") : manuscript.keywords;
+//     manuscript.authors = parsedAuthors;
+//     manuscript.files = updatedFiles;
+
+//     console.log("MANUSCRIPT FILES =", manuscript.files);
+//     console.log("UPDATED FILES =", updatedFiles);
+
+//     await manuscript.save();
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Manuscript updated successfully by Admin",
+//       manuscript,
+//     });
+//   } catch (error) {
+//     console.error("ADMIN EDIT ERROR:", error);
+//     res.status(500).json({ success: false, message: error.message });
+//   }
+// };
+
+
+
+
+
 export const editManuscriptByAdmin = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, abstract, keywords, authors, discipline, manuscriptType } = req.body;
+    const {
+      title,
+      abstract,
+      keywords,
+      authors,
+      discipline,
+      manuscriptType,
+    } = req.body;
 
     const manuscript = await Manuscript.findById(id);
+
     if (!manuscript) {
-      return res.status(404).json({ success: false, message: "Manuscript not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Manuscript not found",
+      });
     }
 
     // Parse authors if provided
     let parsedAuthors = manuscript.authors;
+
     if (authors) {
       try {
         parsedAuthors = JSON.parse(authors);
-        if (!Array.isArray(parsedAuthors) || parsedAuthors.length < 1 || parsedAuthors.length > 15) {
-          return res.status(400).json({ success: false, message: "Authors must be an array (1-15 authors)" });
+
+        if (
+          !Array.isArray(parsedAuthors) ||
+          parsedAuthors.length < 1 ||
+          parsedAuthors.length > 15
+        ) {
+          return res.status(400).json({
+            success: false,
+            message: "Authors must be an array (1-15 authors)",
+          });
         }
       } catch (err) {
-        return res.status(400).json({ success: false, message: "Invalid authors format" });
+        return res.status(400).json({
+          success: false,
+          message: "Invalid authors format",
+        });
       }
     }
 
-    // Handle new file uploads (Replace old files if new ones are uploaded)
-    const updatedFiles = { ...manuscript.files };
-    if (req.files) {
-      const fileFields = ["manuscriptFile", "ethicalDeclaration", "aiReport", "tables", "figures", "coverLetter"];
-
-      for (const field of fileFields) {
-        if (req.files[field]) {
-          // Delete old file from Cloudinary
-          if (updatedFiles[field]?.publicId) {
-            await deleteFromCloudinary(updatedFiles[field].publicId);
-          }
-
-          updatedFiles[field] = {
-            url: req.files[field][0].path,
-            publicId: req.files[field][0].filename,
-          };
+    // Preserve old files
+    const updatedFiles = {
+      manuscriptFile: manuscript.files?.manuscriptFile
+        ? {
+          url: manuscript.files.manuscriptFile.url,
+          publicId: manuscript.files.manuscriptFile.publicId,
         }
-      }
+        : null,
+
+      coverLetter: manuscript.files?.coverLetter
+        ? {
+          url: manuscript.files.coverLetter.url,
+          publicId: manuscript.files.coverLetter.publicId,
+        }
+        : null,
+
+      ethicalDeclaration: manuscript.files?.ethicalDeclaration
+        ? {
+          url: manuscript.files.ethicalDeclaration.url,
+          publicId: manuscript.files.ethicalDeclaration.publicId,
+        }
+        : null,
+
+      aiReport: manuscript.files?.aiReport
+        ? {
+          url: manuscript.files.aiReport.url,
+          publicId: manuscript.files.aiReport.publicId,
+        }
+        : null,
+
+      tables: manuscript.files?.tables
+        ? {
+          url: manuscript.files.tables.url,
+          publicId: manuscript.files.tables.publicId,
+        }
+        : null,
+
+      reviewChecklist: manuscript.files?.reviewChecklist
+        ? {
+          url: manuscript.files.reviewChecklist.url,
+          publicId: manuscript.files.reviewChecklist.publicId,
+        }
+        : null,
+
+      figures: manuscript.files?.figures || [],
+      manuscriptImage: manuscript.files?.manuscriptImage || null,
+    };
+
+    // Replace only uploaded files
+    if (req.files?.manuscriptFile) {
+      updatedFiles.manuscriptFile = {
+        url: req.files.manuscriptFile[0].path,
+        publicId: req.files.manuscriptFile[0].filename,
+      };
     }
 
-    // Update the document
+    if (req.files?.coverLetter) {
+      updatedFiles.coverLetter = {
+        url: req.files.coverLetter[0].path,
+        publicId: req.files.coverLetter[0].filename,
+      };
+    }
+
+    if (req.files?.ethicalDeclaration) {
+      updatedFiles.ethicalDeclaration = {
+        url: req.files.ethicalDeclaration[0].path,
+        publicId: req.files.ethicalDeclaration[0].filename,
+      };
+    }
+
+    if (req.files?.aiReport) {
+      updatedFiles.aiReport = {
+        url: req.files.aiReport[0].path,
+        publicId: req.files.aiReport[0].filename,
+      };
+    }
+
+    if (req.files?.tables) {
+      updatedFiles.tables = {
+        url: req.files.tables[0].path,
+        publicId: req.files.tables[0].filename,
+      };
+    }
+
+    if (req.files?.reviewChecklist) {
+      updatedFiles.reviewChecklist = {
+        url: req.files.reviewChecklist[0].path,
+        publicId: req.files.reviewChecklist[0].filename,
+      };
+    }
+
+    if (req.files?.figures) {
+      updatedFiles.figures = req.files.figures.map((file) => ({
+        url: file.path,
+        publicId: file.filename,
+      }));
+    }
+
+    // Update data
     manuscript.title = title || manuscript.title;
     manuscript.abstract = abstract || manuscript.abstract;
     manuscript.discipline = discipline || manuscript.discipline;
-    manuscript.manuscriptType = manuscriptType || manuscript.manuscriptType;
-    manuscript.keywords = keywords ? keywords.split(",") : manuscript.keywords;
+    manuscript.manuscriptType =
+      manuscriptType || manuscript.manuscriptType;
+    manuscript.keywords = keywords
+      ? keywords.split(",")
+      : manuscript.keywords;
     manuscript.authors = parsedAuthors;
-    manuscript.files = updatedFiles;
+
+    // IMPORTANT
+    manuscript.set("files", updatedFiles);
 
     await manuscript.save();
 
@@ -1439,9 +1780,17 @@ export const editManuscriptByAdmin = async (req, res) => {
     });
   } catch (error) {
     console.error("ADMIN EDIT ERROR:", error);
-    res.status(500).json({ success: false, message: error.message });
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
+
+
+
+
 
 // Admin: Delete Manuscript Completely
 export const deleteManuscriptByAdmin = async (req, res) => {
@@ -1542,5 +1891,79 @@ export const getLatestPublished = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
+
+//For issue edit
+export const updatePublishedPaperIssue = async (req, res) => {
+  try {
+
+    const { manuscriptId, issueId } = req.body;
+
+    const manuscript = await Manuscript.findById(manuscriptId);
+
+    if (!manuscript) {
+      return res.status(404).json({
+        success: false,
+        message: "Paper not found"
+      });
+    }
+
+    if (manuscript.status !== "Published") {
+      return res.status(400).json({
+        success: false,
+        message: "Only published papers can be edited"
+      });
+    }
+
+    // Ad-Hoc Issue
+    if (mongoose.Types.ObjectId.isValid(issueId)) {
+
+      const issue = await Issue.findById(issueId);
+
+      if (!issue) {
+        return res.status(404).json({
+          success: false,
+          message: "Issue not found"
+        });
+      }
+
+      manuscript.issueId = issue._id;
+      manuscript.volume = issue.volume;
+      manuscript.issue = issue.issueNumber;
+      manuscript.issueLabel = issue.label;
+    }
+
+    // Regular Issue
+    else {
+
+      const issueNumber = Number(issueId);
+
+      manuscript.issueId = null;
+      manuscript.issue = issueNumber;
+
+      manuscript.issueLabel = getRegularIssueLabel(
+        manuscript.volume,
+        issueNumber
+      );
+    }
+
+    await manuscript.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Issue updated successfully",
+      manuscript
+    });
+
+  } catch (error) {
+
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+
   }
 };

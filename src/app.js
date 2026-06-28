@@ -4,9 +4,9 @@ import manuscriptRoutes from "./Modules/manuscript/manuscript.routes.js";
 import editorialRoutes from "./Modules/website/editorial/editorial.routes.js";
 import reviewRoutes from "./Modules/review/review.routes.js";
 import enquiryRoutes from "./Modules/enquiry/enquiry.routes.js";
-import copyleaksRoutes from "./Modules/copyleaks/copyleaks.routes.js";
 import paperTrackingRoutes
   from "./Modules/paperTracking/paperTracking.routes.js";
+  import issueRoutes from "./Modules/add-hoc-issue/issue.routes.js";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import cors from "cors";
@@ -51,8 +51,8 @@ app.use("/api/v1/manuscripts", manuscriptRoutes);
 app.use("/api/v1/website/editorial", editorialRoutes);
 app.use("/api/v1/reviews", reviewRoutes);
 app.use("/api/v1/enquiry", enquiryRoutes);
-app.use("/api/v1/copyleaks", copyleaksRoutes);
 app.use("/api/v1/paper-tracking", paperTrackingRoutes);
+app.use("/api/v1/issues",issueRoutes);
 
 // Default Routes
 app.get("/", (req, res) => {
