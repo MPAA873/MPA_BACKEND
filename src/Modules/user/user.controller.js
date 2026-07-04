@@ -127,7 +127,7 @@ export const registerUser = async (req, res) => {
                                 </p>
                                 <table width="100%" style="font-size: 14px; color: #555;">
                                     <tr>
-                                        <td style="padding: 5px 0;"><strong>Email:</strong> <a href="mailto:info@mparesearch.org" style="color: #1a73e8; text-decoration: none;">info@mparesearch.org</a></td>
+                                        <td style="padding: 5px 0;"><strong>Email:</strong> <a href="mailto:info@mparesearch.com" style="color: #1a73e8; text-decoration: none;">info@mparesearch.com</a></td>
                                     </tr>
                                     <tr>
                                         <td style="padding: 5px 0;"><strong>Phone:</strong> +91-9452292537, +91-8923580628</td>
