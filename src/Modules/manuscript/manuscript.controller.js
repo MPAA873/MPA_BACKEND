@@ -31,7 +31,7 @@ const getVolumeIssue = (publishDate) => {
   let issue = 1;
   let issueLabel = "";
 
-  // 2026 ke liye special logic (April se start)
+
   if (year === 2026) {
     if (month >= 4 && month <= 6) {
       issue = 1;
@@ -589,12 +589,6 @@ export const updateSubmissionStatus = async (req, res) => {
 
             volume = result.volume;
 
-            // issueLabel = {
-            //   1: "Jan–Mar",
-            //   2: "Apr–Jun",
-            //   3: "Jul–Sep",
-            //   4: "Oct–Dec"
-            // }[issue];
             issueLabel = getRegularIssueLabel(volume, issue);
 
             if (![1, 2, 3, 4].includes(issue)) {
@@ -1142,7 +1136,7 @@ export const inviteExternalReviewer = async (req, res) => {
                 <tr>
                   <td align="center">
 
-                    <a
+                    
                       href="${loginUrl}"
                       style="
                         display:inline-block;
@@ -1412,6 +1406,15 @@ export const getPublishedArticles = async (req, res) => {
         .populate("issueId")
         .sort({ publishedAt: -1 });
 
+      // NEW: Current Volume — saare Published papers jo is current volume ke
+      // andar aate hain (chahe kisi bhi issue ke ho), latest-first.
+      const currentVolumePapers = await Manuscript.find({
+        status: "Published",
+        volume: currentVol,
+      })
+        .populate("issueId")
+        .sort({ publishedAt: -1 });
+
 
       const adHocIssues = await Manuscript.aggregate([
         {
@@ -1464,6 +1467,8 @@ export const getPublishedArticles = async (req, res) => {
         data: {
           editorChoice,
           currentIssue,
+          currentVolume: currentVolumePapers,
+          currentVolumeNumber: currentVol,
           adHocIssues,
           mostViewed,
         },
@@ -1539,79 +1544,6 @@ export const getPublishedYears = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
-// Admin: Edit Manuscript Details
-// export const editManuscriptByAdmin = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const { title, abstract, keywords, authors, discipline, manuscriptType } = req.body;
-
-//     const manuscript = await Manuscript.findById(id);
-//     if (!manuscript) {
-//       return res.status(404).json({ success: false, message: "Manuscript not found" });
-//     }
-
-//     // Parse authors if provided
-//     let parsedAuthors = manuscript.authors;
-//     if (authors) {
-//       try {
-//         parsedAuthors = JSON.parse(authors);
-//         if (!Array.isArray(parsedAuthors) || parsedAuthors.length < 1 || parsedAuthors.length > 15) {
-//           return res.status(400).json({ success: false, message: "Authors must be an array (1-15 authors)" });
-//         }
-//       } catch (err) {
-//         return res.status(400).json({ success: false, message: "Invalid authors format" });
-//       }
-//     }
-
-//     // Handle new file uploads (Replace old files if new ones are uploaded)
-//     const updatedFiles = { ...manuscript.files };
-//     if (req.files) {
-//       const fileFields = ["manuscriptFile", "ethicalDeclaration", "aiReport", "tables", "figures", "coverLetter"];
-
-//       for (const field of fileFields) {
-//         if (req.files[field]) {
-//           // Delete old file from Cloudinary
-//           if (updatedFiles[field]?.publicId) {
-//             await deleteFromCloudinary(updatedFiles[field].publicId);
-//           }
-
-//           updatedFiles[field] = {
-//             url: req.files[field][0].path,
-//             publicId: req.files[field][0].filename,
-//           };
-//         }
-//       }
-//     }
-
-//     // Update the document
-//     manuscript.title = title || manuscript.title;
-//     manuscript.abstract = abstract || manuscript.abstract;
-//     manuscript.discipline = discipline || manuscript.discipline;
-//     manuscript.manuscriptType = manuscriptType || manuscript.manuscriptType;
-//     manuscript.keywords = keywords ? keywords.split(",") : manuscript.keywords;
-//     manuscript.authors = parsedAuthors;
-//     manuscript.files = updatedFiles;
-
-//     console.log("MANUSCRIPT FILES =", manuscript.files);
-//     console.log("UPDATED FILES =", updatedFiles);
-
-//     await manuscript.save();
-
-//     res.status(200).json({
-//       success: true,
-//       message: "Manuscript updated successfully by Admin",
-//       manuscript,
-//     });
-//   } catch (error) {
-//     console.error("ADMIN EDIT ERROR:", error);
-//     res.status(500).json({ success: false, message: error.message });
-//   }
-// };
-
-
-
-
 
 export const editManuscriptByAdmin = async (req, res) => {
   try {
@@ -1787,10 +1719,6 @@ export const editManuscriptByAdmin = async (req, res) => {
     });
   }
 };
-
-
-
-
 
 // Admin: Delete Manuscript Completely
 export const deleteManuscriptByAdmin = async (req, res) => {
