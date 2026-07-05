@@ -1,5 +1,5 @@
 import express from "express";
-import { submitManuscript, getMySubmissions, getAllSubmissions, assignEditor, updateSubmissionStatus, assignReviewers, getAssignedToEditor, getManuscriptById, reviseManuscript, getPublishedArticles, editManuscriptByAdmin, deleteManuscriptByAdmin, toggleEditorChoice, getPublishedYears, getLatestPublished, inviteExternalReviewer, updatePublishedPaperIssue } from "./manuscript.controller.js";
+import { submitManuscript, getMySubmissions, getAllSubmissions, assignEditor, updateSubmissionStatus, assignReviewers, getAssignedToEditor, getManuscriptById, reviseManuscript, getPublishedArticles, editManuscriptByAdmin, deleteManuscriptByAdmin, toggleEditorChoice, getPublishedYears, getLatestPublished, inviteExternalReviewer, updatePublishedPaperIssue, getPublicStats } from "./manuscript.controller.js";
 import { protect } from "../../Middlewares/auth.middleware.js";
 import upload from "../../Middlewares/upload.middleware.js";
 import { authorizeRoles } from "../../Middlewares/role.middleware.js";
@@ -29,6 +29,9 @@ router.put("/admin/assign-editor", protect, authorizeRoles("masterAdmin"), assig
 router.get("/year", getPublishedYears)
 
 router.get("/latest", getLatestPublished);
+
+
+router.get("/stats", getPublicStats);
 
 router.put(
   "/admin/update-status",
@@ -102,5 +105,8 @@ router.put(
   authorizeRoles("masterAdmin"),
   updatePublishedPaperIssue
 );
+
+
+
 
 export default router;

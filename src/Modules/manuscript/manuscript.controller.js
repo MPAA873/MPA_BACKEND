@@ -1895,3 +1895,35 @@ export const updatePublishedPaperIssue = async (req, res) => {
 
   }
 };
+
+
+
+// Public Stats for Homepage (Real-time from DB)
+export const getPublicStats = async (req, res) => {
+  try {
+    const [publishedArticles, reviewers, researchers, viewsAgg, disciplines] =
+      await Promise.all([
+        Manuscript.countDocuments({ status: "Published" }),
+        User.countDocuments({ role: "reviewer" }),
+        User.countDocuments({ role: "researcher" }),
+        Manuscript.aggregate([
+          { $match: { status: "Published" } },
+          { $group: { _id: null, total: { $sum: "$views" } } },
+        ]),
+        Manuscript.distinct("discipline", { status: "Published" }),
+      ]);
+
+    res.status(200).json({
+      success: true,
+      stats: {
+        publishedArticles,
+        reviewers,
+        researchers,
+        totalViews: viewsAgg[0]?.total || 0,
+        disciplines: disciplines.length,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
