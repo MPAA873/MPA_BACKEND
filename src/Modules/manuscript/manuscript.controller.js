@@ -1555,6 +1555,7 @@ export const editManuscriptByAdmin = async (req, res) => {
       authors,
       discipline,
       manuscriptType,
+      doi,
     } = req.body;
 
     const manuscript = await Manuscript.findById(id);
@@ -1699,6 +1700,12 @@ export const editManuscriptByAdmin = async (req, res) => {
       ? keywords.split(",")
       : manuscript.keywords;
     manuscript.authors = parsedAuthors;
+
+    manuscript.authors = parsedAuthors;
+
+    if (doi !== undefined) {
+      manuscript.doi = doi.trim();
+    }
 
     // IMPORTANT
     manuscript.set("files", updatedFiles);

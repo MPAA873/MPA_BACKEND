@@ -292,6 +292,12 @@ const manuscriptSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    doi: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
     views: {
       type: Number,
       default: 0,
