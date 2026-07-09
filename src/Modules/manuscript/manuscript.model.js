@@ -46,6 +46,14 @@ const manuscriptSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+
+    slug: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true,
+    },
+
     discipline: {
       type: String,
       required: true,

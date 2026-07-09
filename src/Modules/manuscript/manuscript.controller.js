@@ -192,6 +192,16 @@ export const submitManuscript = async (req, res) => {
     const count = await Manuscript.countDocuments();
     const mId = `MPA-${new Date().getFullYear()}-${1000 + count + 1}`;
 
+    const baseSlug = title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+    let slug = baseSlug;
+    let slugCount = 1;
+    while (await Manuscript.findOne({ slug })) {
+      slug = `${baseSlug}-${slugCount++}`;
+    }
+
     //  manuscript file URL (Cloudinary se)
     const manuscriptUrl =
       req.files?.manuscriptFile?.[0]?.path || null;
@@ -201,6 +211,7 @@ export const submitManuscript = async (req, res) => {
     // Create manuscript
     const newManuscript = await Manuscript.create({
       manuscriptId: mId,
+      slug,
       title,
       discipline,
       abstract,
@@ -1272,7 +1283,12 @@ export const getAssignedToEditor = async (req, res) => {
 // Get single manuscript by id
 export const getManuscriptById = async (req, res) => {
   try {
-    const manuscript = await Manuscript.findById(req.params.id)
+    const identifier = req.params.id;
+    const query = mongoose.Types.ObjectId.isValid(identifier)
+      ? { _id: identifier }
+      : { slug: identifier };
+
+    const manuscript = await Manuscript.findOne(query)
       .populate("submittedBy", "name affiliation email");
 
     if (!manuscript) {
