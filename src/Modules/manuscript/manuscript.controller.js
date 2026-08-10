@@ -436,6 +436,7 @@ export const updateSubmissionStatus = async (req, res) => {
     const userRole = req.user.role;
     const file = req.file ? req.file.path : null;
 
+
     const manuscript = await Manuscript.findById(manuscriptId).populate(
       "submittedBy",
       "name email"
@@ -518,7 +519,13 @@ export const updateSubmissionStatus = async (req, res) => {
           email: researcher.email,
           subject: `Final Proofreading: ${manuscript.manuscriptId}`,
           html,
-          attachments: [{ filename: "Final-Template.pdf", path: file }]
+          attachments: [
+            {
+              filename: req.file.originalname,
+              path: req.file.path,
+              contentType: req.file.mimetype,
+            },
+          ]
         });
 
         return res.status(200).json({ success: true, message: "Final script sent to author for proofreading." });
