@@ -543,7 +543,28 @@ export const updateSubmissionStatus = async (req, res) => {
       if (status === "Rejected") {
         manuscript.status = "Rejected";
         manuscript.rejectionFeedback = feedback || "";
-      } else if (status === "Revision Required") {
+
+        const researcher = manuscript.submittedBy;
+
+        const html = buildRejectionEmail(
+          researcher.name,
+          manuscript.manuscriptId,
+          feedback,
+          !!file   // true if admin uploaded a supporting document
+        );
+
+        await sendEmail({
+          email: researcher.email,
+          subject: `Manuscript Update: ${manuscript.manuscriptId}`,
+          html,
+          attachments: file ? [{ filename: "Rejection-Document.pdf", path: file }] : [],
+        });
+      }
+
+
+
+
+      else if (status === "Revision Required") {
         manuscript.status = "Revision Required";
         manuscript.revisionFeedback = feedback || "";
         manuscript.isRevised = false;

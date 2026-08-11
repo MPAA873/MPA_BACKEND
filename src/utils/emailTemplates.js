@@ -59,20 +59,35 @@ const baseEmailTemplate = (title, content, headerColor = "#1e3a8a") => {
   `;
 };
 
-// 🔴 1. Rejection Email Template (red)
-export const buildRejectionEmail = (researcherName, manuscriptId, feedback) => {
+
+// 🔴 1. Rejection Email Template (light red, professional)
+export const buildRejectionEmail = (researcherName, manuscriptId, feedback, hasAttachment = false) => {
   const content = `
-    <h2 style="color: #dc2626; font-size: 22px; margin-top: 0;">Manuscript Status: Rejected ❌</h2>
-    <p style="font-size: 16px; line-height: 1.6;">Dear <b>${researcherName}</b>,</p>
-    <p style="font-size: 16px; line-height: 1.6;">We have completed the editorial review of your manuscript <b>${manuscriptId}</b>. After careful consideration, we regret to inform you that we will not be able to publish it in our journal at this time.</p>
-    
-    <div style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; margin: 25px 0; border-radius: 4px;">
-      <h3 style="color: #991b1b; margin-top: 0; font-size: 16px;">Editorial Feedback:</h3>
-      <p style="color: #7f1d1d; margin: 0; font-size: 15px; white-space: pre-wrap;">${feedback || "Please check the attached file for detailed feedback."}</p>
+    <h2 style="color: #b91c1c; font-size: 21px; margin-top: 0; font-weight: 600;">Manuscript Status Update</h2>
+
+    <p style="font-size: 16px; line-height: 1.7;">Dear <b>${researcherName}</b>,</p>
+
+    <p style="font-size: 16px; line-height: 1.7;">
+      Thank you for submitting your manuscript${manuscriptId ? ` entitled <b>${manuscriptId}</b>` : ""} to <b>MPA Research</b>.
+    </p>
+
+    <div style="background-color: #fef5f5; border-left: 4px solid #fca5a5; padding: 18px 20px; margin: 25px 0; border-radius: 6px;">
+      <p style="color: #9f1239; margin: 0; font-size: 15px; line-height: 1.8; white-space: pre-wrap;">
+        ${feedback || "Following a preliminary administrative and research-integrity compliance assessment, we regret to inform you that your manuscript cannot be considered further and has therefore been rejected at the administrative screening stage."}
+      </p>
     </div>
-    <p style="font-size: 16px; line-height: 1.6;">We appreciate your interest in <b>MPA Research</b> and encourage you to submit your future work to us.</p>
+
+    ${hasAttachment ? `
+    <p style="font-size: 14px; color: #6b7280; line-height: 1.6;">
+      📎 A detailed evaluation document has been attached to this email for your reference.
+    </p>
+    ` : ""}
+
+    <p style="font-size: 16px; line-height: 1.7;">
+      Please feel free to reach out to us at <a href="mailto:info@mparesearch.com" style="color:#b91c1c; text-decoration:none; font-weight:600;">info@mparesearch.com</a> for any clarifications.
+    </p>
   `;
-  return baseEmailTemplate("Manuscript Rejected", content, "#dc2626"); // Red
+  return baseEmailTemplate("Manuscript Update", content, "#f87171"); // Light Red
 };
 
 // 🟠 2. Revision Required Email Template 
