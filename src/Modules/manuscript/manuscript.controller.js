@@ -1349,10 +1349,36 @@ export const getManuscriptById = async (req, res) => {
       });
     }
 
+    // res.status(200).json({
+    //   success: true,
+    //   manuscript, // This key MUST match what your frontend expects
+    // });
+
+
+    // Hide internal editorial data from public/unauthenticated response
+    const manuscriptObj = manuscript.toObject();
+    delete manuscriptObj.editorInternalComments;
+    delete manuscriptObj.editorRecommendation;
+    delete manuscriptObj.assignedEditor;
+    delete manuscriptObj.assignedReviewers;
+    delete manuscriptObj.externalReviewers;
+    delete manuscriptObj.rejectionFeedback;
+    delete manuscriptObj.revisionFeedback;
+    delete manuscriptObj.feedbackFile;
+    delete manuscriptObj.submittedBy;
+    if (manuscriptObj.files) {
+      delete manuscriptObj.files.reviewChecklist;
+      delete manuscriptObj.files.coverLetter;
+      delete manuscriptObj.files.ethicalDeclaration;
+      delete manuscriptObj.files.aiReport;
+      delete manuscriptObj.files.tables;
+    }
+
     res.status(200).json({
       success: true,
-      manuscript, // This key MUST match what your frontend expects
+      manuscript: manuscriptObj, // This key MUST match what your frontend expects
     });
+
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -1371,14 +1397,13 @@ export const reviseManuscript = async (req, res) => {
       return res.status(403).json({ success: false, message: "Not authorized" });
     }
 
-    // --- LOGIC CHANGE START ---
-    // Agar manuscript final proofreading stage par hai, to status change karein
+
     if (manuscript.status === "Final Script Sent") {
       manuscript.status = "Final Author Approved";
     } else {
       manuscript.status = "Revision Submitted"; // Normal Revision
     }
-    // --- LOGIC CHANGE END ---
+
 
     if (req.files) {
       if (req.files.manuscriptFile) {

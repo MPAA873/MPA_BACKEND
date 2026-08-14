@@ -5,14 +5,14 @@ import Review from "../review/review.model.js";
 export const getPaperTracking = async (req, res) => {
   try {
 
-    // 1. Actual logs (new papers)
+   
     const tracking = await PaperTracking.find({
       manuscriptId: req.params.id
     })
       .populate("performedBy", "name email role")
       .sort({ createdAt: 1 });
 
-    // Agar logs mil gaye to wahi return kar do
+  
     if (tracking.length > 0) {
       return res.status(200).json({
         success: true,
